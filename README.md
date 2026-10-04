@@ -69,6 +69,18 @@ okx\run.bat                                           # launches
 The game runs as the **full version** by default (XBLA titles shipped as trials that unlock on purchase,
 which is no longer possible). Use `okx\run.bat --license_mask=0` to play the trial.
 
+## Features
+- **Launcher** before the game starts (turn it off in the launcher; hold Shift at startup to bring it back):
+  - **Game**: install the game files straight from your XBLA package, full-game / trial toggle
+  - **Display**: fullscreen / windowed, window size, **frame-rate cap (30 / 60 / 120 / 144 / 165 / 240 / unlimited)**,
+    VSync, 16:9 letterbox or stretch
+  - **Graphics**: internal resolution up to 6x (8K), FXAA, native 2x MSAA, anisotropic filtering up to 16x
+  - **Controls**: invert the camera (right stick) and left stick per axis, remap any controller button,
+    keyboard & mouse play with rebindable keys
+- **Unlocked frame rate**: the Xbox 360 version ran at 30 FPS; this port defaults to 60 and can go higher.
+  The game times everything by real elapsed time, so it runs at the correct speed at any frame rate.
+- Full game unlocked by default.
+
 ## How it works
 - `tools/extract_stfs.ps1` unpacks the STFS package (`default.xex` + data).
 - `rexglue codegen` translates every PowerPC function in `default.xex` into C++ (`okx/generated/`, not committed).

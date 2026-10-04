@@ -16,6 +16,11 @@ set(OUTPOSTKALOKIX_SOURCES
     src/fpe_guard.cpp
     src/frame_stats.cpp
     src/sampler.cpp
+    src/settings.cpp
+    src/input_remap.cpp
+    src/launcher.cpp
+    src/platform.cpp
+    src/stfs.cpp
 )
 
 if(WIN32)

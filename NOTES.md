@@ -13,9 +13,12 @@ Build: VS 2022 Build Tools (clang 19.1.5 works despite the docs asking for 20), 
 ## Quick start
 ```
 okx\build.bat            # configure + build (okx-relwithdebinfo by default)
-okx\run.bat              # launch (full-game license by default)
-okx\run.bat --license_mask=0   # launch as the trial
+okx\run.bat              # launch (launcher first; hold Shift to force it when disabled)
+okx\run.bat --okx_frame_rate=0 --okx_launcher=false   # any setting can be overridden per run
 ```
+Settings live in `outpost_kaloki_x.toml` next to the exe (written by the launcher; only non-default values,
+command-line overrides are never saved). Game files default to `game\` next to the exe (the launcher installs
+there from an XBLA package); `run.bat` points at `okx\assets` instead.
 
 ## Layout
 | Path | What |
@@ -58,10 +61,52 @@ okx\run.bat --license_mask=0   # launch as the trial
   (0xC000008F) kills the process. `fpe_guard.cpp` masks + repairs `ctx->fpscr.csr` on first trap per thread.
   Proper fix upstream: seed `csr` via `InitHost()` in `FunctionDispatcher::Execute` / `ThreadState` ctor.
 
+## Frame rate (src/frame_stats.cpp, settings.cpp)
+- **The 30 FPS lock was an emulation artifact.** ReXGlue's `d3d12_submit_on_primary_buffer_end=true` (default)
+  submits + waits on the host GPU at every ring-buffer end → ~27 ms/frame, which then rounds to 2 vblanks at
+  60 Hz = 30 FPS. With it off the title runs uncapped (110 FPS = user's system cap).
+- Guest `vsync` only paces the emulated console: 60 Hz fake vblank + `Sleep(wait/256 ms)` per poll in
+  `WAIT_REG_MEM` (command_processor.cpp:1031). Host present is always immediate + tearing allowed
+  (`d3d12_allow_variable_refresh_rate_and_tearing`). So the port forces guest `vsync=false` and paces with its
+  own limiter (`okx_frame_rate`: high-res waitable timer + spin in the swap hook). Launcher "VSync" maps to the
+  tearing flag.
+- Game speed stays correct: `sub_820DE550` is a delta-time timer (QPC via `sub_820E94D8`, scale 60 → delta in
+  1/60 s units, stored at `0x822D24E8`). Measured FPS × delta = 60 at 30/60/110 FPS.
+- `sub_820F3CF8` = D3D swap (calls VdSwap), hooked for FPS counting (F3 overlay) + limiter.
+- Busy-wait seen in profiles: `sub_820F5B50`/`sub_82105B08` = D3D "wait for GPU fence" spin.
+- Overrides must be applied in `OnPostSetup`: GPU-plugin cvars don't exist until the plugin loads
+  (SetFlagByName on an unregistered cvar silently fails; CLI values are queued and work).
+
+## Input (src/input_remap.cpp)
+- `sub_820E9678` = XInputGetState wrapper (only pad read). Post-call rewrite of guest XINPUT_STATE (BE):
+  button/trigger remap (`okx_map_<button>`), stick inversion (`okx_invert_{ls,rs}_{x,y}`). Right stick = camera.
+- Keyboard: ReXGlue `mnk_mode` + `keybind_*` cvars feed the same path, so remaps/inversion apply too.
+- No gamertag setting: the title never imports XamUserGetName/GetGamerTag (profile name is hardcoded "User"
+  in ReXGlue user_profile.cpp; also used as the save folder name).
+
+## Launcher (src/launcher.cpp)
+- Shown from `OnFinalizePaths` (window + ImGui exist, runtime not yet built) when `okx_launcher`, Shift held,
+  or game files missing. PLAY → `CallInUIThreadDeferred(resume)`.
+- GPU plugin DLL is preloaded in `OnConfigurePaths` (before config load) so its cvars (resolution_scale,
+  swap_post_effect, native_2x_msaa, anisotropic_override) are registered, loaded and saveable.
+- Presenter/window cvars (`present_effect`, `window_width/height`, `monitor`) are read before the launcher →
+  changing them relaunches the exe with `--okx_skip_launcher=true`.
+- `window_width/height` are logical (96-DPI) pixels; launcher converts with the window DPI.
+- Combos only offer values the cvar allows: the prebuilt SDK has no FidelityFX, so `present_effect` only
+  accepts `bilinear` (CAS/FSR hidden).
+- Installer: C++ STFS extractor (`src/stfs.cpp`, port of tools/StfsExtract.cs), checks title ID 584107DB.
+- Port defaults (`ApplyPortDefaults`, changed *defaults* so config/CLI still win): `license_mask=1`,
+  `fullscreen=false`.
+
+## Dev tools
+- `OKX_PROFILE=<s>` → profile.txt per-thread hotspots (symbolize with VS `llvm-symbolizer --relative-address`).
+- `OKX_DUMP_IMAGE=<file>` → decrypted guest image. `tools/snap_window.ps1`, `tools/click_window.ps1`
+  (screenshot / click the game window for automated UI checks).
+
 ## Known log noise (harmless so far)
 - `NtCreateFile 'saved'` fails at boot (before any save content exists); `viewer.ini` / `gametest.init` are dev files.
 
 ## Next
-- Play-test: input, gameplay, saving (`XamContentCreate`), achievements, audio/XMA.
-- Confirm no "Unlock Full Game" / trial limits with license_mask=1.
-- Report the FPSCR bug upstream.
+- Play-test with a controller: camera inversion, remapping, keyboard mode, gameplay at 60+ FPS (check physics/
+  animation timing in actual gameplay, not just the title screen), saving, achievements, audio.
+- Report the FPSCR bug and the submit-on-primary-buffer-end stall upstream.

@@ -3,7 +3,8 @@
 // sub_820F3CF8 is the title's D3D swap routine (builds the swap packet and
 // calls VdSwap), so it runs once per presented guest frame. Count calls to
 // get the real game frame rate (the host presenter can run faster), log it
-// once a second, and feed ReXGlue's F3 debug overlay.
+// once a second, and feed ReXGlue's F3 debug overlay. Also applies the
+// okx_frame_rate cap.
 
 #include "frame_stats.h"
 
@@ -12,9 +13,22 @@
 #include <cstring>
 #include <chrono>
 #include <mutex>
+#include <thread>
+
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 #include <rex/hook.h>
 #include <rex/logging.h>
+
+#include "settings.h"
 
 namespace okx {
 namespace {
@@ -68,8 +82,45 @@ rex::ui::FrameStats GetGuestFrameStats() {
 
 }  // namespace okx
 
+namespace okx {
+namespace {
+
+// Frame limiter for okx_frame_rate: high-resolution waitable timer for the bulk
+// of the wait, then a short spin for precision.
+void LimitFrameRate() {
+  const int32_t fps = REXCVAR_GET(okx_frame_rate);
+  static Clock::time_point next{};
+  if (fps <= 0) {
+    next = {};
+    return;
+  }
+  const auto period = std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(1.0 / fps));
+  auto now = Clock::now();
+  if (next == Clock::time_point{} || now - next > period) {
+    next = now + period;  // first frame, or fell behind: resync
+    return;
+  }
+#if defined(_WIN32)
+  static HANDLE timer =
+      CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+  const auto coarse = next - now - std::chrono::microseconds(500);
+  if (timer && coarse > Clock::duration::zero()) {
+    LARGE_INTEGER due;
+    due.QuadPart = -std::chrono::duration_cast<std::chrono::nanoseconds>(coarse).count() / 100;
+    SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE);
+    WaitForSingleObject(timer, INFINITE);
+  }
+#endif
+  while (Clock::now() < next) std::this_thread::yield();
+  next += period;
+}
+
+}  // namespace
+}  // namespace okx
+
 REX_EXTERN(__imp__sub_820F3CF8);
 REX_HOOK_RAW(sub_820F3CF8) {
+  okx::LimitFrameRate();
   // Frame delta computed by the title's timer (sub_820DE550), in 1/60 s units.
   uint32_t dt_bits;
   std::memcpy(&dt_bits, base + 0x822D24E8, sizeof(dt_bits));
