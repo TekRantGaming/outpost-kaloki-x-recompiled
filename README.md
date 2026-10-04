@@ -1,11 +1,45 @@
 # Outpost Kaloki X — Recompiled
 
-A native PC port of the 2005 Xbox Live Arcade game **Outpost Kaloki X** (NinjaBee), built by
-statically recompiling the original Xbox 360 executable to C++ with the
-[ReXGlue SDK](https://github.com/rexglue/rexglue-sdk).
+A native PC port of the 2005 Xbox Live Arcade game **Outpost Kaloki X** (NinjaBee), the enhanced
+Xbox 360 edition of *Outpost Kaloki*, built by statically recompiling the original Xbox 360 executable
+to C++ with the [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk).
 
 **Status:** early — builds and boots to the title screen on Windows (D3D12 + SDL audio).
-Gameplay, saving and achievements are not yet tested.
+Gameplay, saving and achievements are not yet tested. The supported build is the original 2005 release
+(v0.0.1.1); the October 2006 title update, which fixed some achievement and gold-medal bugs, is not yet
+applied.
+
+## Why recompile? Isn't there a PC version?
+
+There is, but it isn't this game. The original *Outpost Kaloki* came out on Windows in 2004 and is still
+sold on [itch.io](https://ninjabee.itch.io/outpost-kaloki). The Xbox 360 release a year later,
+*Outpost Kaloki X*, was a substantially expanded edition, and the PC version was never updated to match.
+The only way to play the definitive version has been on a 360 or in an emulator.
+
+What *Outpost Kaloki X* has over the PC original:
+
+| | PC *Outpost Kaloki* (2004) | Xbox 360 *Outpost Kaloki X* (2005) |
+|---|---|---|
+| Levels | Base set | **More than twice as many levels**[^wiki] |
+| Story campaigns | Single "save the princess" story[^itch] | **Two full campaigns**: Adventure Story (10+ chapters) and War Story (6+ missions), 25+ levels combined[^pr][^ach] |
+| Scenarios | Fewer | **11 sandbox and scenario levels** incl. The Eight-Port Challenge, The Hammer and Survival[^pr][^ach] |
+| Challenges | — | **Time challenges and leaderboards** with gold-medal times[^wiki] |
+| Graphics | Original | **Enhanced graphics**[^wiki][^itch] |
+| Achievements | — | **12 achievements**[^ach] |
+| Interface | Mouse/keyboard | **Redesigned for a controller**[^pr] |
+| Downloadable content | — | Extra scenarios (The Swarm, Fireworks) and a planned downloadable story[^pr][^dlc] *(DLC not yet supported here)* |
+
+NinjaBee's own PC store page acknowledges the Xbox edition has improved graphics and additional levels, with
+no PC update planned.[^itch] This project aims to keep that expanded edition playable natively on modern PCs.
+
+[^wiki]: [Wikipedia: Outpost Kaloki](https://en.wikipedia.org/wiki/Outpost_Kaloki)
+[^pr]: [NinjaBee press release, 2005](https://gamedeveloper.com/press-release/outpost-kaloki-x-to-debut-on-xbox-360-live-arcade)
+[^itch]: [Outpost Kaloki on itch.io (NinjaBee)](https://ninjabee.itch.io/outpost-kaloki)
+[^dlc]: [The Swarm Scenario on Deku Deals](https://www.dekudeals.com/items/outpost-kaloki-x-the-swarm-scenario-outpost-kaloki)
+[^ach]: Chapter, mission and scenario names come from the game's own achievement data
+    (extract it with `rexglue init achievements`).
+
+## Getting started
 
 > [!IMPORTANT]
 > This repository contains **no game code or assets**. You must provide your own legally
