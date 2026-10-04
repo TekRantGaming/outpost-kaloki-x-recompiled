@@ -1,4 +1,4 @@
-# Outpost Kaloki X — Xbox 360 static recompilation
+# Outpost Kaloki X: Xbox 360 static recompilation
 
 Toolchain: [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk) v0.10.0 (prebuilt, in `tools/rexglue/win-amd64`).
 Build: VS 2022 Build Tools (clang 19.1.5 works despite the docs asking for 20), CMake 4.4.3, Ninja 1.13.2.
@@ -43,11 +43,11 @@ there from an XBLA package); `run.bat` points at `okx\assets` instead.
 - `overrides.toml`:
   - `0x82294C98–0x82294D60`: message dispatcher only reachable via thunk `sub_8229A6E8` (vtable slot).
   - `0x82073660–0x820736B0`: qsort comparator; analyzer had split it at `0x82073680`.
-- `missing_funcs.toml` (generated): static initializers (CRT `__xc_a` table — first runtime crash was
+- `missing_funcs.toml` (generated): static initializers (CRT `__xc_a` table: first runtime crash was
   `0x822C7110`), vtable/callback targets. Regenerate: run once with `OKX_DUMP_IMAGE=okx/image.bin`, then
   `Add-Type tools/FindMissingFuncs.cs; [FindMissingFuncs]::Run(image, partition.json, generated dir, 0x82060000, 0x822C807C, out)`.
   Then prune: candidates that cause unresolved branches are C++ EH catch funclets (`mr r8,r8` padding,
-  referenced from EH tables in .rdata) living inside their parent function — remove them. Import thunks
+  referenced from EH tables in .rdata) living inside their parent function: remove them. Import thunks
   (`0x822C769C+`) are excluded automatically.
 
 ## Runtime fixes / settings

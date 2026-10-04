@@ -1,105 +1,261 @@
-# Outpost Kaloki X — Recompiled
+<div align="center">
 
-A native PC port of the 2005 Xbox Live Arcade game **Outpost Kaloki X** (NinjaBee), the enhanced
-Xbox 360 edition of *Outpost Kaloki*, built by statically recompiling the original Xbox 360 executable
-to C++ with the [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk).
+<img src="docs/images/banner.jpg" alt="Outpost Kaloki X PC Port" width="100%">
 
-**Status:** early — builds and boots to the title screen on Windows (D3D12 + SDL audio).
-Gameplay, saving and achievements are not yet tested. The supported build is the original 2005 release
-(v0.0.1.1); the October 2006 title update, which fixed some achievement and gold-medal bugs, is not yet
-applied.
+<br>
 
-## Why recompile? Isn't there a PC version?
+[![Latest release](https://img.shields.io/github/v/release/TekRantGaming/outpost-kaloki-x-recompiled?style=for-the-badge&label=release&color=8bd550&labelColor=07101f)](https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/TekRantGaming/outpost-kaloki-x-recompiled/total?style=for-the-badge&color=2e7d32&labelColor=07101f)](https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases)
+![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20soon-00acc1?style=for-the-badge&labelColor=07101f)
 
-There is, but it isn't this game. The original *Outpost Kaloki* came out on Windows in 2004 and is still
-sold on [itch.io](https://ninjabee.itch.io/outpost-kaloki). The Xbox 360 release a year later,
-*Outpost Kaloki X*, was a substantially expanded edition, and the PC version was never updated to match.
-The only way to play the definitive version has been on a 360 or in an emulator.
+### Outpost Kaloki X on PC, running natively, with the launcher and options of a modern PC release.
 
-What *Outpost Kaloki X* has over the PC original:
+[<img src="https://img.shields.io/badge/Download-Windows%20Builder-8bd550?style=for-the-badge&logo=windows&logoColor=white&labelColor=07101f" alt="Download for Windows" height="40">](https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases/latest)
+&nbsp;
+<img src="https://img.shields.io/badge/Linux%20AppImage-coming%20soon-555555?style=for-the-badge&logo=linux&logoColor=white&labelColor=07101f" alt="Linux coming soon" height="40">
+
+<sub>The original Xbox 360 game code, translated to native PC code with the <a href="https://github.com/rexglue/rexglue-sdk">ReXGlue SDK</a>. <b>No game files included</b>: bring your own copy of the Outpost Kaloki X Xbox Live Arcade package.</sub>
+
+</div>
+
+<br>
+
+## Highlights
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+**Up to 8K**<br>
+Render at up to 7680 x 4320, with presets from Supersample to Ultra Performance that match your screen.
+
+</td>
+<td width="33%" valign="top">
+
+**60 fps and beyond**<br>
+The Xbox 360 version ran at 30 fps. Pick 60, 120, 144, 165, 240 or unlimited, and the game still runs at its normal speed.
+
+</td>
+<td width="33%" valign="top">
+
+**Xbox 360 style achievements**<br>
+A pop-up with a sound every time you unlock one, just like the console. Choose the sound in the launcher.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+**The full game, unlocked**<br>
+Xbox Live Arcade games shipped as trials that you unlocked by buying them. That is no longer possible, so the full game is unlocked for you.
+
+</td>
+<td valign="top">
+
+**Your controls, your way**<br>
+Invert the camera, change its speed, set a deadzone, remap any button, adjust vibration, or play with keyboard and mouse.
+
+</td>
+<td valign="top">
+
+**One-click builder**<br>
+Double-click, pick your game file, and the builder makes the PC version for you. No technical steps.
+
+</td>
+</tr>
+</table>
+
+## Why this port? Isn't there already a PC version?
+
+There is, but it is not this game. The original *Outpost Kaloki* came out on PC in 2004. A year later NinjaBee released **Outpost Kaloki X** on Xbox 360: a bigger, better version that the PC game never received.
 
 | | PC *Outpost Kaloki* (2004) | Xbox 360 *Outpost Kaloki X* (2005) |
-|---|---|---|
-| Levels | Base set | **More than twice as many levels**[^wiki] |
-| Story campaigns | Single "save the princess" story[^itch] | **Two full campaigns**: Adventure Story (10+ chapters) and War Story (6+ missions), 25+ levels combined[^pr][^ach] |
-| Scenarios | Fewer | **11 sandbox and scenario levels** incl. The Eight-Port Challenge, The Hammer and Survival[^pr][^ach] |
-| Challenges | — | **Time challenges and leaderboards** with gold-medal times[^wiki] |
-| Graphics | Original | **Enhanced graphics**[^wiki][^itch] |
-| Achievements | — | **12 achievements**[^ach] |
-| Interface | Mouse/keyboard | **Redesigned for a controller**[^pr] |
-| Downloadable content | — | Extra scenarios (The Swarm, Fireworks) and a planned downloadable story[^pr][^dlc] *(DLC not yet supported here)* |
+| --- | --- | --- |
+| Levels | the original set | **more than twice as many** |
+| Story campaigns | one | **two**: Adventure Story and War Story |
+| Scenarios | fewer | **11**, including The Eight-Port Challenge, The Hammer and Survival |
+| Challenges | none | **time challenges** with gold medal times |
+| Graphics | original | **improved** |
+| Achievements | none | **12** |
+| Made for | mouse and keyboard | **a controller** |
 
-NinjaBee's own PC store page acknowledges the Xbox edition has improved graphics and additional levels, with
-no PC update planned.[^itch] This project aims to keep that expanded edition playable natively on modern PCs.
+Until now the only way to play it was on an Xbox 360 or an emulator. This port keeps it playable on modern PCs.
 
-[^wiki]: [Wikipedia: Outpost Kaloki](https://en.wikipedia.org/wiki/Outpost_Kaloki)
-[^pr]: [NinjaBee press release, 2005](https://gamedeveloper.com/press-release/outpost-kaloki-x-to-debut-on-xbox-360-live-arcade)
-[^itch]: [Outpost Kaloki on itch.io (NinjaBee)](https://ninjabee.itch.io/outpost-kaloki)
-[^dlc]: [The Swarm Scenario on Deku Deals](https://www.dekudeals.com/items/outpost-kaloki-x-the-swarm-scenario-outpost-kaloki)
-[^ach]: Chapter, mission and scenario names come from the game's own achievement data
-    (extract it with `rexglue init achievements`).
+## The launcher
+
+Everything is set up before the game starts. The launcher uses art from your own copy of the game: its icon, its achievement pictures and its title screen. Settings are saved to a plain text file, `outpost_kaloki_x.toml`, next to the game.
+
+<table>
+<tr>
+<td width="55%"><img src="docs/images/launcher-play.jpg" alt="Play page"></td>
+<td valign="middle">
+
+### Play
+- **Install the game** straight from your Xbox Live Arcade package, with a progress bar
+- Checks the file really is Outpost Kaloki X
+- Play the **full game** or the **trial**
+- Turn the launcher off and **hold Shift** at start to bring it back
+
+</td>
+</tr>
+<tr>
+<td valign="middle">
+
+### Display
+- **Windowed** or **fullscreen**
+- **Window size** that fits your screen
+- **Choose the monitor**
+- **VSync** on or off (off works great with G-Sync and FreeSync)
+- **Keep 16:9** with borders, or **stretch** to fill
+
+</td>
+<td width="55%"><img src="docs/images/launcher-display.jpg" alt="Display page"></td>
+</tr>
+<tr>
+<td><img src="docs/images/launcher-graphics.jpg" alt="Graphics page"></td>
+<td valign="middle">
+
+### Graphics
+- **Render quality** presets: Supersample, Native, Quality, Balanced, Performance and Ultra Performance, each showing the real resolution for your screen
+- **Custom resolution** from 1x (720p) to 6x (8K)
+- **FXAA** and **FXAA Extreme**
+- Real **2x MSAA**
+- **Texture filtering** up to 16x
+
+</td>
+</tr>
+<tr>
+<td valign="middle">
+
+### Gameplay
+- **Frame rate**: 30, 60, 120, 144, 165, 240 or unlimited
+- **Frame counter** in the corner, toggled with <kbd>F2</kbd>
+- **Language**
+
+</td>
+<td><img src="docs/images/launcher-gameplay.jpg" alt="Gameplay page"></td>
+</tr>
+<tr>
+<td><img src="docs/images/launcher-controls.jpg" alt="Controls page"></td>
+<td valign="middle">
+
+### Controls
+- **Invert the camera** left/right and up/down, separately
+- **Camera speed** from 25% to 300%
+- **Stick deadzone** to stop drift
+- **Vibration** on or off, with a strength slider
+- **Remap any button** on your controller
+- **Keyboard and mouse** play: click a control, press a key
+
+</td>
+</tr>
+<tr>
+<td valign="middle">
+
+### Achievements
+- All **12 achievements** with their pictures, descriptions and gamerscore
+- See which ones you have **unlocked**
+- Turn **pop-ups** and their **sound** on or off, set the volume
+- **Pick the sound**: the built-in chime or any `.wav` you put in the `sounds` folder
+- A **test button** to see and hear it
+- A bonus **Welcome** achievement the first time you play
+
+</td>
+<td><img src="docs/images/launcher-achievements.jpg" alt="Achievements page"></td>
+</tr>
+<tr>
+<td><img src="docs/images/launcher-about.jpg" alt="About page"></td>
+<td valign="middle">
+
+### About
+- Open your **save folder**, **game folder** or **settings file** in one click
+- **Reset** every setting
+- Refresh the launcher's title screen art
+
+</td>
+</tr>
+</table>
+
+## In game
+
+<div align="center">
+<img src="docs/images/game-menu.jpg" alt="The main menu at 4K" width="100%">
+<sub>The main menu, rendered at 4K.</sub>
+</div>
+
+<br>
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/game-station.jpg" alt="Running the space station"></td>
+<td width="50%"><img src="docs/images/game-building.jpg" alt="Building a lemonade stand while visitors arrive"></td>
+</tr>
+<tr>
+<td><img src="docs/images/game-story.jpg" alt="Choosing the Adventure Story or the War Story"></td>
+<td><img src="docs/images/game-boss.jpg" alt="The Boss gives you your first job"></td>
+</tr>
+<tr>
+<td><img src="docs/images/game-build.jpg" alt="The build menu"></td>
+<td><img src="docs/images/achievement-popup.jpg" alt="An achievement pop-up over the title screen"></td>
+</tr>
+</table>
+
+### Xbox 360 vs PC port
+
+| | Xbox 360 | PC port |
+| --- | :---: | :---: |
+| Resolution | 1280 x 720 | up to 7680 x 4320 |
+| Frame rate | 30 fps | 30 to 240 fps, or unlimited |
+| Anti-aliasing | none | FXAA, 2x MSAA |
+| Texture filtering | basic | up to 16x |
+| Display | TV | windowed or fullscreen, any monitor |
+| Controls | Xbox 360 controller | any controller, remapping, keyboard and mouse |
+| Camera | fixed | inverted axes, speed, deadzone |
+| Achievement pop-ups | console | Xbox 360 style, with your choice of sound |
+| Full game | bought on Xbox Live | unlocked |
+
+### Hotkeys
+
+| Key | Action |
+| --- | --- |
+| <kbd>F2</kbd> | frame counter |
+| <kbd>F3</kbd> | performance overlay |
+| <kbd>F7</kbd> | achievements overlay |
+| <kbd>Shift</kbd> while starting | open the launcher |
 
 ## Getting started
 
-> [!IMPORTANT]
-> This repository contains **no game code or assets**. You must provide your own legally
-> obtained copy of the Outpost Kaloki X XBLA package. Do not open issues asking for game files.
+**You need:** Windows 10 or 11 (64-bit), a graphics card with DirectX 12, and your own Outpost Kaloki X Xbox Live Arcade package (the file with no extension from your Xbox 360 or emulator content folder, title ID `584107DB`).
 
-> [!NOTE]
-> **AI disclosure:** this project is developed almost entirely with Claude Code (Anthropic).
-> The analysis fixes, tooling, runtime workarounds and docs in this repo were written by the AI
-> under the direction of the repository owner.
+1. Download the **Windows builder** from the [latest release](https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases/latest) and unzip it.
+2. Double-click **Build Outpost Kaloki X.bat**.
+3. If it asks, let it install the build tools (Visual Studio Build Tools, CMake and Ninja). This is a one-time download of about 6 GB.
+4. Pick your Outpost Kaloki X package when asked.
+5. Wait while it builds (10 to 20 minutes). The finished game appears in the **OutpostKalokiX** folder, with an optional desktop shortcut.
 
-## Requirements (Windows)
-- Your own dump of the XBLA package (title ID `584107DB`)
-- Visual Studio 2022 Build Tools: *Desktop development with C++* + *C++ Clang Compiler for Windows* + *MSBuild support for LLVM (clang-cl)*
-- CMake 3.25+ and Ninja
+**Why a builder and not a ready-made download?** The PC version is made from the game's own code, which belongs to its creators and can't be shared. The builder makes it on your PC from your own copy, so nothing from the game is ever downloaded or uploaded.
 
-```bash
-winget install Kitware.CMake Ninja-build.Ninja
-```
+**Linux:** an AppImage is coming soon.
 
-## Build
+<details>
+<summary><b>Building by hand (for developers)</b></summary>
+
 ```powershell
-.\setup.ps1 -Package "C:\path\to\Outpost Kaloki X"   # downloads SDK, extracts game, runs codegen
-okx\build.bat                                         # compiles (RelWithDebInfo)
-okx\run.bat                                           # launches
+.\setup.ps1 -Package "C:\path\to\Outpost Kaloki X"   # downloads the SDK, unpacks your game, translates the code
+okx\build.bat okx-release                             # compiles
 ```
 
-The game runs as the **full version** by default (XBLA titles shipped as trials that unlock on purchase,
-which is no longer possible). Use `okx\run.bat --license_mask=0` to play the trial.
+The finished game is in `okx\out\build\okx-release`. Point it at your game files with `--game_data_root`, or copy them into a `game` folder next to the exe. Technical notes on every fix are in [NOTES.md](NOTES.md).
 
-## Features
-- **Launcher** before the game starts, decorated with art from your own copy of the game (its title screen,
-  icon and achievement art). Turn it off in the launcher; hold Shift at startup to bring it back.
-  - **Play**: install the game straight from your XBLA package, full game / trial
-  - **Display**: fullscreen / windowed, window size, monitor, VSync, 16:9 letterbox or stretch
-  - **Graphics**: render quality presets (Supersample, Native, Quality, Balanced, Performance, Ultra Performance)
-    up to 8K, FXAA, native 2x MSAA, anisotropic filtering up to 16x
-  - **Gameplay**: **frame-rate cap (30 / 60 / 120 / 144 / 165 / 240 / unlimited)**, frame counter (F2), language
-  - **Controls**: invert the camera and left stick per axis, camera speed, stick deadzone, vibration strength,
-    remap any controller button, keyboard & mouse play with rebindable keys
-  - **Achievements**: all 12 with their icons and your unlock progress, notification settings and a test button
-  - **About**: open your save / game folders and settings file, reset settings
-- **Unlocked frame rate**: the Xbox 360 version ran at 30 FPS; this port defaults to 60 and can go higher.
-  The game times everything by real elapsed time, so it runs at the correct speed at any frame rate.
-- **Achievement pop-ups** in the style of the Xbox 360, with a chime, whenever you unlock one in game (drop your
-  own `achievement.wav` in the save folder to change the sound). A bonus "Welcome" achievement unlocks the first
-  time you play.
-- Full game unlocked by default.
-
-## How it works
-- `tools/extract_stfs.ps1` unpacks the STFS package (`default.xex` + data).
-- `rexglue codegen` translates every PowerPC function in `default.xex` into C++ (`okx/generated/`, not committed).
-- `okx/overrides.toml` and `okx/missing_funcs.toml` fix function boundaries the automatic analysis misses
-  (functions only reachable through pointers: static initializers, vtables, callbacks).
-- `okx/src/` holds the app: GPU/audio backend setup, license default, and a workaround for a ReXGlue
-  floating-point exception bug.
-
-See [NOTES.md](NOTES.md) for detailed technical notes on every fix.
+</details>
 
 ## Credits
-- [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk), [Xenia](https://github.com/xenia-project/xenia),
-  [XenonRecomp](https://github.com/hedge-dev/XenonRecomp)
-- Outpost Kaloki X © NinjaBee / Wahoo Studios. This project is not affiliated with or endorsed by
-  NinjaBee, Microsoft or Xbox.
+
+- **Outpost Kaloki X** by NinjaBee (Wahoo Studios), published by Microsoft in 2005.
+- [**ReXGlue SDK**](https://github.com/rexglue/rexglue-sdk), which does the code translation and runs the game, built on the work of [**Xenia**](https://github.com/xenia-project/xenia) and [**XenonRecomp**](https://github.com/hedge-dev/XenonRecomp).
+
+> [!NOTE]
+> **AI disclosure:** this port was made almost entirely with Claude Code (Anthropic). The repository owner directed and tested the work; the AI did the analysis, code, tools and documentation.
+
+> [!IMPORTANT]
+> This project is not affiliated with or endorsed by NinjaBee, Wahoo Studios, Microsoft or Xbox. It contains no game code or assets. Do not open issues asking for game files.

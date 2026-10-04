@@ -12,7 +12,9 @@
 param(
     [string]$Package,                     # skip the file picker
     [string]$OutDir = "$PSScriptRoot\OutpostKalokiX",
-    [switch]$Yes                          # answer yes to every question
+    [switch]$Yes,                         # answer yes to every question
+    [switch]$NoShortcut,                  # never add a desktop shortcut
+    [switch]$NoLaunch                     # do not offer to start the game
 )
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -101,7 +103,7 @@ Copy-Item "$root\okx\assets\*" "$OutDir\game" -Recurse -Force
 $exe = "$OutDir\outpost_kaloki_x.exe"
 Say "  Done: $exe" 'Green'
 
-if (Ask "  Add a desktop shortcut?") {
+if (-not $NoShortcut -and (Ask "  Add a desktop shortcut?")) {
     $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Outpost Kaloki X.lnk'
     $sh = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
     $sh.TargetPath = $exe; $sh.WorkingDirectory = $OutDir; $sh.Save()
@@ -109,4 +111,4 @@ if (Ask "  Add a desktop shortcut?") {
 }
 Say ""
 Say "  All done. Hold Shift while starting the game to open the launcher at any time." 'Green'
-if (Ask "  Start Outpost Kaloki X now?") { Start-Process $exe -WorkingDirectory $OutDir }
+if (-not $NoLaunch -and (Ask "  Start Outpost Kaloki X now?")) { Start-Process $exe -WorkingDirectory $OutDir }
