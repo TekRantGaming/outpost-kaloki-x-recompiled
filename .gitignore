@@ -1,0 +1,17 @@
+# --- Copyrighted game data: never commit ---
+/game/
+/okx/assets/
+/okx/image.bin
+*.xex
+*.blk.bz2
+# Recompiled C++ is derived from the game's code; regenerate with setup.ps1
+/okx/generated/default/
+
+# --- Downloaded / build output ---
+/tools/rexglue/
+/okx/out/
+/screenshots/
+
+# --- Logs & scratch ---
+*.log
+/okx/missing_funcs.all.toml

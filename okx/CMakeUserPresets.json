@@ -1,0 +1,20 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "user-env",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_PREFIX_PATH": "${sourceDir}/../tools/rexglue/win-amd64"
+            }
+        },
+        { "name": "okx-debug",          "inherits": ["win-amd64-debug",          "user-env"] },
+        { "name": "okx-release",        "inherits": ["win-amd64-release",        "user-env"] },
+        { "name": "okx-relwithdebinfo", "inherits": ["win-amd64-relwithdebinfo", "user-env"] }
+    ],
+    "buildPresets": [
+        { "name": "okx-debug",          "configurePreset": "okx-debug" },
+        { "name": "okx-release",        "configurePreset": "okx-release" },
+        { "name": "okx-relwithdebinfo", "configurePreset": "okx-relwithdebinfo" }
+    ]
+}

@@ -1,0 +1,7 @@
+# Manual analysis fixes for Outpost Kaloki X (default.xex)
+
+[functions]
+# Only reachable via the this-adjusting thunk sub_8229A6E8 (vtable slot); gap after sub_82294C68.
+0x82294C98 = { end = 0x82294D60 }
+# Comparator reached only through a function pointer; analysis split it at 0x82073680.
+0x82073660 = { end = 0x820736B0 }
