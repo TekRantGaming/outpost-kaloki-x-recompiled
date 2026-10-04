@@ -14,6 +14,8 @@ include(generated/rexglue.cmake)
 set(OUTPOSTKALOKIX_SOURCES
     src/main.cpp
     src/fpe_guard.cpp
+    src/frame_stats.cpp
+    src/sampler.cpp
 )
 
 if(WIN32)

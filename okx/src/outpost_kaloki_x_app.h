@@ -12,6 +12,8 @@
 #include <rex/rex_app.h>
 #include <rex/runtime.h>
 
+#include "frame_stats.h"
+
 class OutpostKalokiXApp : public rex::ReXApp {
  public:
   using rex::ReXApp::ReXApp;
@@ -47,7 +49,10 @@ class OutpostKalokiXApp : public rex::ReXApp {
     out.write(reinterpret_cast<const char*>(base + PPCImageConfig.image_base),
               PPCImageConfig.image_size);
   }
-  // void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {}
+  void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {
+    (void)drawer;
+    SetGuestFrameStats(okx::GetGuestFrameStats);  // F3 overlay "Guest: N FPS"
+  }
   // std::unique_ptr<rex::ui::ImGuiDialog> CreateAchievementsOverlay() override;
   // std::unique_ptr<rex::ui::AchievementNotificationDialog>
   // CreateAchievementNotificationDialog() override;
