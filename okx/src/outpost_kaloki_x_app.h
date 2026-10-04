@@ -14,13 +14,20 @@
 #include <rex/audio/sdl/sdl_audio_system.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
+#include <rex/logging.h>
 #include <rex/rex_app.h>
 #include <rex/runtime.h>
+#include <rex/system/achievement_manager.h>
+#include <rex/system/interfaces/graphics.h>
+#include <rex/ui/immediate_drawer.h>
+#include <rex/ui/presenter.h>
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
 
+#include "art.h"
 #include "frame_stats.h"
 #include "launcher.h"
+#include "overlay.h"
 #include "platform.h"
 #include "settings.h"
 
@@ -46,15 +53,22 @@ class OutpostKalokiXApp : public rex::ReXApp {
 
   std::optional<rex::PathConfig> OnFinalizePaths(
       const rex::PathConfig& defaults, std::function<void(rex::PathConfig)> resume) override {
+    user_data_root_ = defaults.user_data_root;
     const bool skip_once = REXCVAR_GET(okx_skip_launcher);
     rex::cvar::ResetToDefault("okx_skip_launcher");  // never persist it
     const bool files_ok = okx::GameFilesPresent(defaults.game_data_root);
     const bool show = !files_ok || okx::IsShiftHeld() || (REXCVAR_GET(okx_launcher) && !skip_once);
-    if (!show) return defaults;
+    if (!show) {
+      okx::ApplyRenderPreset(OutputSize().second);
+      return defaults;
+    }
 
     okx::LauncherCallbacks cb;
     cb.play = [this, resume, defaults] {
-      app_context().CallInUIThreadDeferred([resume, defaults] { resume(defaults); });
+      app_context().CallInUIThreadDeferred([this, resume, defaults] {
+        okx::ApplyRenderPreset(OutputSize().second);
+        resume(defaults);
+      });
     };
     cb.restart_and_play = [this] {
       okx::RelaunchSelf(L"--okx_skip_launcher=true");
@@ -70,15 +84,14 @@ class OutpostKalokiXApp : public rex::ReXApp {
       return window() ? double(window()->GetDpi()) / window()->GetMediumDpi() : 1.0;
     };
     cb.screen_size = [] { return okx::PrimaryScreenSize(); };
-    okx::ShowLauncher(imgui_drawer(), defaults.game_data_root, defaults.config_path, std::move(cb));
+    cb.output_size = [this] { return OutputSize(); };
+    okx::ShowLauncher(imgui_drawer(), immediate_drawer(),
+                      {defaults.game_data_root, defaults.user_data_root, defaults.config_path},
+                      std::move(cb));
     return std::nullopt;
   }
 
-  void OnConfigureFonts(ImFontAtlas* atlas) override {
-    // Segoe UI reads far better than the default pixel font in the launcher
-    // and overlays; fall back silently if it isn't installed.
-    okx::LoadUiFont(atlas);
-  }
+  void OnConfigureFonts(ImFontAtlas* atlas) override { okx::LoadUiFont(atlas); }
 
   void OnPreSetup(rex::RuntimeConfig& config) override {
     if (!config.graphics && config.gpu_plugin.empty()) config.gpu_plugin = "xenos";
@@ -88,6 +101,12 @@ class OutpostKalokiXApp : public rex::ReXApp {
 
   void OnPostSetup() override {
     okx::ApplyRuntimeOverrides();
+
+    // Give the launcher the achievement names (read from the game by the runtime).
+    if (!user_data_root_.empty())
+      okx::art::WriteAchievementCache(achievements().ListAchievements(),
+                                      okx::art::AchievementCachePath(user_data_root_));
+    ScheduleTitleCapture();
 
     // Debug aid: set OKX_DUMP_IMAGE=<file> to write the decrypted guest image
     // (0x82000000-0x823A0000) for offline analysis.
@@ -100,7 +119,33 @@ class OutpostKalokiXApp : public rex::ReXApp {
   }
 
   void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {
-    (void)drawer;
     SetGuestFrameStats(okx::GetGuestFrameStats);  // F3 overlay "Guest: N FPS"
+    okx::CreateFpsOverlay(drawer);
   }
+
+ private:
+  // Size the game is shown at: the monitor in fullscreen, else the window.
+  std::pair<int, int> OutputSize() const {
+    if (REXCVAR_QUERY(bool, fullscreen) || !window()) return okx::PrimaryScreenSize();
+    return {int(window()->GetActualPhysicalWidth()), int(window()->GetActualPhysicalHeight())};
+  }
+
+  // On first play, keep a frame of the game's title screen as launcher art.
+  void ScheduleTitleCapture() {
+    if (user_data_root_.empty()) return;
+    const auto path = okx::art::TitleCapturePath(user_data_root_);
+    std::error_code ec;
+    if (std::filesystem::exists(path, ec)) return;
+    okx::RunAfterFirstFrame(14.0, [this, path] {
+      app_context().CallInUIThread([this, path] {
+        rex::ui::RawImage image;
+        auto* gfx = runtime() ? runtime()->graphics_system() : nullptr;
+        auto* presenter = gfx ? gfx->presenter() : nullptr;
+        if (presenter && presenter->CaptureGuestOutput(image) && okx::art::SaveTitleCapture(image, path))
+          REXLOG_INFO("OKX: saved launcher art {}x{}", image.width, image.height);
+      });
+    });
+  }
+
+  std::filesystem::path user_data_root_;
 };

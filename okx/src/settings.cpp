@@ -1,6 +1,8 @@
 #include "settings.h"
 
+#include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <fstream>
 
 #include <rex/logging.h>
@@ -12,6 +14,14 @@ REXCVAR_DEFINE_BOOL(okx_skip_launcher, false, "OKX",
                     "Internal: skip the launcher once (used when it relaunches the game)");
 REXCVAR_DEFINE_INT32(okx_frame_rate, 60, "OKX/Video",
                      "Frame-rate cap: 30, 60, 120, 144, 165, 240, or 0 for unlimited");
+REXCVAR_DEFINE_STRING(okx_render_quality, "native", "OKX/Video",
+                      "Render resolution relative to the output: native, quality, balanced, performance, "
+                      "ultra_performance, supersample, or custom (use resolution_scale)");
+REXCVAR_DEFINE_BOOL(okx_show_fps, false, "OKX/Video", "Show a frame-rate counter (toggle in game with F2)");
+REXCVAR_DEFINE_INT32(okx_deadzone, 0, "OKX/Controls", "Extra stick deadzone in percent (0-50)");
+REXCVAR_DEFINE_INT32(okx_camera_sensitivity, 100, "OKX/Controls", "Camera (right stick) sensitivity in percent");
+REXCVAR_DEFINE_BOOL(okx_vibration, true, "OKX/Controls", "Controller vibration");
+REXCVAR_DEFINE_INT32(okx_vibration_strength, 100, "OKX/Controls", "Vibration strength in percent");
 REXCVAR_DEFINE_BOOL(okx_invert_rs_x, false, "OKX/Controls", "Invert right stick horizontal (camera)");
 REXCVAR_DEFINE_BOOL(okx_invert_rs_y, false, "OKX/Controls", "Invert right stick vertical");
 REXCVAR_DEFINE_BOOL(okx_invert_ls_x, false, "OKX/Controls", "Invert left stick horizontal");
@@ -98,6 +108,41 @@ Pad GetMapping(Pad physical) { return ParsePad(MapStorage(physical)); }
 void SetMapping(Pad physical, Pad target) {
   rex::cvar::SetFlagByName(std::string("okx_map_") + GetPadInfo(physical).id,
                            target == Pad::kNone ? "none" : GetPadInfo(target).id);
+}
+
+const std::array<RenderPreset, 6>& RenderPresets() {
+  // Ratios follow the usual upscaler naming (output / render); the game renders
+  // at integer multiples of its native 720p, so the nearest multiple is used.
+  static const std::array<RenderPreset, 6> kPresets = {{
+      {"supersample", "Supersample", 0.5},
+      {"native", "Native", 1.0},
+      {"quality", "Quality", 1.5},
+      {"balanced", "Balanced", 1.7},
+      {"performance", "Performance", 2.0},
+      {"ultra_performance", "Ultra Performance", 3.0},
+  }};
+  return kPresets;
+}
+
+int RenderScaleFor(std::string_view preset, int output_height) {
+  for (const auto& p : RenderPresets()) {
+    if (preset != p.id) continue;
+    const double target = std::max(1, output_height) / p.ratio;
+    return std::clamp(static_cast<int>(std::lround(target / 720.0)), 1, 8);
+  }
+  return 0;  // custom
+}
+
+void ApplyRenderPreset(int output_height) {
+  const int scale = RenderScaleFor(REXCVAR_GET(okx_render_quality), output_height);
+  if (scale <= 0) return;
+  // Set as the cvar's default so an explicit resolution_scale (custom) is untouched
+  // and the derived value is not written to the config.
+  SetCvarDefault("resolution_scale", std::to_string(scale));
+  if (rex::cvar::GetFlagByName("resolution_scale") != std::to_string(scale))
+    rex::cvar::SetFlagByName("resolution_scale", std::to_string(scale));
+  REXLOG_INFO("OKX: render preset {} at {}p output -> {}x ({}p)", REXCVAR_GET(okx_render_quality),
+              output_height, scale, scale * 720);
 }
 
 bool SaveSettings(const std::filesystem::path& path) {

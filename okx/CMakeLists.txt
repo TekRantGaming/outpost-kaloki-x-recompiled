@@ -21,6 +21,8 @@ set(OUTPOSTKALOKIX_SOURCES
     src/launcher.cpp
     src/platform.cpp
     src/stfs.cpp
+    src/art.cpp
+    src/overlay.cpp
 )
 
 if(WIN32)

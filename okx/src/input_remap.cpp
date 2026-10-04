@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 
@@ -37,6 +38,23 @@ void StoreBE(uint8_t* p, T v) {
 void Invert(uint8_t* p) {
   const int16_t v = LoadBE<int16_t>(p);
   StoreBE<int16_t>(p, v == INT16_MIN ? INT16_MAX : static_cast<int16_t>(-v));
+}
+
+// Radial deadzone (rescaled so output still starts at 0) and a gain, applied to
+// one stick's X/Y pair.
+void ShapeStick(uint8_t* xy, float deadzone, float gain) {
+  if (deadzone <= 0.0f && gain == 1.0f) return;
+  float x = LoadBE<int16_t>(xy) / 32767.0f, y = LoadBE<int16_t>(xy + 2) / 32767.0f;
+  const float mag = std::sqrt(x * x + y * y);
+  if (mag <= deadzone || mag == 0.0f) {
+    x = y = 0.0f;
+  } else {
+    const float scaled = std::min(1.0f, (mag - deadzone) / (1.0f - deadzone) * gain);
+    x = x / mag * scaled;
+    y = y / mag * scaled;
+  }
+  StoreBE<int16_t>(xy, static_cast<int16_t>(std::clamp(x, -1.0f, 1.0f) * 32767.0f));
+  StoreBE<int16_t>(xy + 2, static_cast<int16_t>(std::clamp(y, -1.0f, 1.0f) * 32767.0f));
 }
 
 void Remap(uint8_t* state) {
@@ -76,6 +94,11 @@ void Remap(uint8_t* state) {
   if (REXCVAR_GET(okx_invert_ls_y)) Invert(state + 10);
   if (REXCVAR_GET(okx_invert_rs_x)) Invert(state + 12);
   if (REXCVAR_GET(okx_invert_rs_y)) Invert(state + 14);
+
+  const float deadzone = std::clamp(REXCVAR_GET(okx_deadzone), 0, 50) / 100.0f;
+  const float camera = std::clamp(REXCVAR_GET(okx_camera_sensitivity), 10, 400) / 100.0f;
+  ShapeStick(state + 8, deadzone, 1.0f);
+  ShapeStick(state + 12, deadzone, camera);
 }
 
 }  // namespace
@@ -85,4 +108,19 @@ REX_HOOK_RAW(sub_820E9678) {
   const uint32_t state_ptr = ctx.r4.u32;
   __imp__sub_820E9678(ctx, base);
   if (ctx.r3.u32 == 0 && state_ptr) Remap(base + state_ptr);  // ERROR_SUCCESS
+}
+
+// sub_820E9688 is the title's XInputSetState(user, vibration) wrapper; scale or
+// drop the guest XINPUT_VIBRATION {u16 left, u16 right} before it is applied.
+REX_EXTERN(__imp__sub_820E9688);
+REX_HOOK_RAW(sub_820E9688) {
+  if (const uint32_t vib = ctx.r4.u32) {
+    const float strength =
+        REXCVAR_GET(okx_vibration) ? std::clamp(REXCVAR_GET(okx_vibration_strength), 0, 100) / 100.0f : 0.0f;
+    for (uint32_t offset : {0u, 2u}) {
+      uint8_t* motor = base + vib + offset;
+      StoreBE<uint16_t>(motor, static_cast<uint16_t>(LoadBE<uint16_t>(motor) * strength));
+    }
+  }
+  __imp__sub_820E9688(ctx, base);
 }

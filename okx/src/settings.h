@@ -17,6 +17,12 @@
 REXCVAR_DECLARE(bool, okx_launcher);
 REXCVAR_DECLARE(bool, okx_skip_launcher);
 REXCVAR_DECLARE(int32_t, okx_frame_rate);
+REXCVAR_DECLARE(std::string, okx_render_quality);
+REXCVAR_DECLARE(bool, okx_show_fps);
+REXCVAR_DECLARE(int32_t, okx_deadzone);
+REXCVAR_DECLARE(int32_t, okx_camera_sensitivity);
+REXCVAR_DECLARE(bool, okx_vibration);
+REXCVAR_DECLARE(int32_t, okx_vibration_strength);
 REXCVAR_DECLARE(bool, okx_invert_rs_x);
 REXCVAR_DECLARE(bool, okx_invert_rs_y);
 REXCVAR_DECLARE(bool, okx_invert_ls_x);
@@ -52,6 +58,18 @@ void SetMapping(Pad physical, Pad target);
 
 // Frame-rate choices offered by the launcher (0 = unlimited).
 constexpr std::array<int32_t, 7> kFrameRateChoices = {30, 60, 120, 144, 165, 240, 0};
+
+// Render-resolution presets (okx_render_quality).
+struct RenderPreset {
+  const char* id;
+  const char* label;
+  double ratio;  // output size / render size
+};
+const std::array<RenderPreset, 6>& RenderPresets();
+// resolution_scale (1-8) a preset gives for an output height; 0 for "custom".
+int RenderScaleFor(std::string_view preset, int output_height);
+// Applies okx_render_quality for the given output height (call before the GPU starts).
+void ApplyRenderPreset(int output_height);
 
 // Writes the current settings (skipping command-line/env overrides) to `path`.
 bool SaveSettings(const std::filesystem::path& path);

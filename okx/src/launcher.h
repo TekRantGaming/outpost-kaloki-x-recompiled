@@ -1,5 +1,6 @@
-// Pre-game launcher: installs the game files and edits video, graphics and
-// control settings before the runtime starts (shown from OnFinalizePaths).
+// Pre-game launcher: installs the game files and edits video, graphics,
+// gameplay and control settings before the runtime starts (shown from
+// OnFinalizePaths). Uses art from the player's own game files.
 
 #pragma once
 
@@ -8,6 +9,10 @@
 #include <utility>
 
 #include <rex/ui/imgui_dialog.h>
+
+namespace rex::ui {
+class ImmediateDrawer;
+}
 
 namespace okx {
 
@@ -18,6 +23,13 @@ struct LauncherCallbacks {
   std::function<void(bool)> set_fullscreen;  // apply window mode live
   std::function<double()> dpi_scale;         // window DPI / 96
   std::function<std::pair<int, int>()> screen_size;  // monitor size in physical pixels
+  std::function<std::pair<int, int>()> output_size;  // size the game will be shown at
+};
+
+struct LauncherPaths {
+  std::filesystem::path game_dir;
+  std::filesystem::path user_dir;
+  std::filesystem::path config_path;
 };
 
 // True when the game files needed to boot exist under `game_dir`.
@@ -28,7 +40,7 @@ bool GameFilesPresent(const std::filesystem::path& game_dir);
 void PreloadGpuPlugin();
 
 // Creates the launcher dialog; it deletes itself when closed.
-void ShowLauncher(rex::ui::ImGuiDrawer* drawer, std::filesystem::path game_dir,
-                  std::filesystem::path config_path, LauncherCallbacks callbacks);
+void ShowLauncher(rex::ui::ImGuiDrawer* drawer, rex::ui::ImmediateDrawer* immediate,
+                  LauncherPaths paths, LauncherCallbacks callbacks);
 
 }  // namespace okx

@@ -85,6 +85,21 @@ there from an XBLA package); `run.bat` points at `okx\assets` instead.
   in ReXGlue user_profile.cpp; also used as the save folder name).
 
 ## Launcher (src/launcher.cpp)
+- Design follows the SMS launcher: header banner, sidebar pages (Play, Display, Graphics, Gameplay, Controls,
+  Achievements, About), label+description rows with segmented controls, pill PLAY button, Enter/Esc/Ctrl+S.
+  Theme = deep-space blues + Kaloki-planet green. Its ImGui style is restored when it closes.
+- Art comes only from the player's files / the running game (src/art.cpp): `arcadefiles/titleicon.png` +
+  achievement icons mapped via `ArcadeInfo.xml`; header = title-screen capture taken 14 s after the first frame
+  of the first play (`Documents/outpost_kaloki_x/launcher/title.bmp`, via GraphicsSystem presenter
+  `CaptureGuestOutput`); achievement names written to `launcher/achievements.toml` in OnPostSetup; unlock state
+  read from ReXGlue's `achievements/584107DB.toml`. Procedural starfield + planet until then.
+- Game art inside `Full_Common.blk.bz2` (FE_logo etc.) is PTC-compressed (`PTC+MSHM`, Microsoft Progressive
+  Transform Codec) - not decodable outside the game. Block file format: u32 chunk count, u32 total size, then
+  per chunk (u32 uncompressed, u32 compressed, bzip2 data); archive = 1741 x 0x60-byte entries
+  (name[0x44], BE offset, BE size, ...) then data.
+- Upscalers: user chose none. DLSS/FSR2+ need engine motion vectors (absent); prebuilt SDK lacks FidelityFX.
+  `okx_render_quality` presets instead (Supersample/Native/Quality/Balanced/Performance/Ultra Performance =
+  output/render ratios 0.5/1/1.5/1.7/2/3, rounded to integer multiples of 720p), applied before the GPU starts.
 - Shown from `OnFinalizePaths` (window + ImGui exist, runtime not yet built) when `okx_launcher`, Shift held,
   or game files missing. PLAY → `CallInUIThreadDeferred(resume)`.
 - GPU plugin DLL is preloaded in `OnConfigurePaths` (before config load) so its cvars (resolution_scale,
