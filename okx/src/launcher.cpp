@@ -926,12 +926,21 @@ class Launcher final : public rex::ui::ImGuiDialog {
     if (BeginRows("##ach_settings")) {
       Row("Notifications", "An Xbox 360-style pop-up when you unlock an achievement in game.");
       ToggleCvar("okx_achievement_toasts", "Off", "On");
-      Row("Sound", "The chime that plays with each pop-up. Put your own achievement.wav in the save folder to "
-                   "replace it.");
+      Row("Sound", "The sound that plays with each pop-up.");
       ToggleCvar("okx_achievement_sound", "Off", "On");
       if (GetBool("okx_achievement_sound")) {
+        Row("Sound to play",
+            "Pick the built-in chime or a sound you added. Put .wav files in the sounds folder to see them here.");
+        SoundCombo();
+        if (ImGui::Button("Open sounds folder", ImVec2(-FLT_MIN, 0))) {
+          OpenInExplorer(SoundsDir(paths_.user_dir));
+          sounds_.clear();  // rescan when the list is next drawn
+        }
         Row("Volume", "");
-        SliderCvar("okx_achievement_volume", 0, 100, "%d%%");
+        int v = GetInt("okx_achievement_volume", 80);
+        if (ImGui::SliderInt("##vol", &v, 0, 100, "%d%%", ImGuiSliderFlags_AlwaysClamp))
+          SetInt("okx_achievement_volume", v);
+        if (ImGui::IsItemDeactivatedAfterEdit()) PlayAchievementSound(paths_.user_dir);
       }
       Row("Test", "Shows a sample notification right now.");
       if (AccentButton("Test notification", ImVec2(-FLT_MIN, 0))) {
@@ -985,6 +994,28 @@ class Launcher final : public rex::ui::ImGuiDialog {
     for (size_t i = 0; i < achievements_.size(); ++i) {
       if (i % cols) ImGui::SameLine(0, gap);
       DrawAchievementCard(achievements_[i], card_w);
+    }
+  }
+
+  void SoundCombo() {
+    if (sounds_.empty() || ImGui::GetTime() - sounds_scanned_ > 3.0) {
+      sounds_ = ListSounds(paths_.user_dir);
+      sounds_.insert(sounds_.begin(), std::filesystem::path());  // built-in chime
+      sounds_scanned_ = ImGui::GetTime();
+    }
+    const std::string cur = Get("okx_achievement_sound_file");
+    auto label = [](const std::filesystem::path& p) { return p.empty() ? std::string("Original chime (built in)") : SoundLabel(p); };
+    std::string preview = "Original chime (built in)";
+    for (auto& p : sounds_)
+      if (p.string() == cur) preview = label(p);
+    if (ImGui::BeginCombo("##sound", preview.c_str(), ImGuiComboFlags_HeightLarge)) {
+      for (auto& p : sounds_) {
+        if (ImGui::Selectable(label(p).c_str(), p.string() == cur)) {
+          Set("okx_achievement_sound_file", p.string());
+          PlayAchievementSound(paths_.user_dir);  // preview
+        }
+      }
+      ImGui::EndCombo();
     }
   }
 
@@ -1170,6 +1201,8 @@ class Launcher final : public rex::ui::ImGuiDialog {
   bool have_achievement_names_ = false;
   std::unique_ptr<AchievementToast> toast_;
   size_t test_index_ = 0;
+  std::vector<std::filesystem::path> sounds_;
+  double sounds_scanned_ = -10.0;
 
   stfs::Progress progress_;
   std::thread install_thread_;

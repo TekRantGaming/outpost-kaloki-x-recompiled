@@ -1,6 +1,7 @@
 #include "toast.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <fstream>
@@ -95,23 +96,112 @@ std::filesystem::path PortAchievementFile(const std::filesystem::path& user_dir)
 
 }  // namespace
 
+std::filesystem::path SoundsDir(const std::filesystem::path& user_dir) { return user_dir / "sounds"; }
+
+std::vector<std::filesystem::path> ListSounds(const std::filesystem::path& user_dir) {
+  std::vector<std::filesystem::path> out;
+  std::error_code ec;
+  for (const auto& e : std::filesystem::directory_iterator(SoundsDir(user_dir), ec)) {
+    auto ext = e.path().extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return char(std::tolower(c)); });
+    if (e.is_regular_file(ec) && ext == ".wav") out.push_back(e.path().filename());
+  }
+  std::sort(out.begin(), out.end());
+  return out;
+}
+
+std::string SoundLabel(const std::filesystem::path& file) {
+  std::string name = file.stem().string();
+  bool word_start = true;
+  for (char& c : name) {
+    if (c == '_' || c == '-') c = ' ';
+    if (word_start && c != ' ') c = char(std::toupper(static_cast<unsigned char>(c)));
+    word_start = c == ' ';
+  }
+  return name;
+}
+
+namespace {
+
+// Reads a 16-bit PCM WAV (tolerating the 0xFFFFFFFF sizes written by streaming
+// encoders) and returns a clean WAV with the volume applied, or empty if the
+// format isn't 16-bit PCM.
+std::vector<uint8_t> LoadWavScaled(const std::filesystem::path& path, float volume) {
+  std::ifstream f(path, std::ios::binary | std::ios::ate);
+  if (!f) return {};
+  std::vector<uint8_t> in(size_t(f.tellg()));
+  f.seekg(0);
+  f.read(reinterpret_cast<char*>(in.data()), in.size());
+  if (in.size() < 12 || std::memcmp(in.data(), "RIFF", 4) || std::memcmp(in.data() + 8, "WAVE", 4)) return {};
+  const uint8_t* fmt = nullptr;
+  size_t data_off = 0, data_len = 0;
+  for (size_t o = 12; o + 8 <= in.size();) {
+    uint32_t len;
+    std::memcpy(&len, &in[o + 4], 4);
+    if (!std::memcmp(&in[o], "fmt ", 4) && len >= 16 && o + 8 + 16 <= in.size()) fmt = &in[o + 8];
+    if (!std::memcmp(&in[o], "data", 4)) {
+      data_off = o + 8;
+      data_len = std::min<size_t>(len, in.size() - data_off);
+      break;
+    }
+    o += 8 + size_t(len) + (len & 1);
+  }
+  if (!fmt || !data_off) return {};
+  uint16_t format, channels, bits;
+  uint32_t rate;
+  std::memcpy(&format, fmt, 2);
+  std::memcpy(&channels, fmt + 2, 2);
+  std::memcpy(&rate, fmt + 4, 4);
+  std::memcpy(&bits, fmt + 14, 2);
+  if (format != 1 || bits != 16 || channels == 0) return {};
+  data_len &= ~size_t(channels * 2 - 1);
+
+  std::vector<uint8_t> wav(44 + data_len);
+  auto put32 = [&](size_t o, uint32_t v) { std::memcpy(&wav[o], &v, 4); };
+  auto put16 = [&](size_t o, uint16_t v) { std::memcpy(&wav[o], &v, 2); };
+  std::memcpy(&wav[0], "RIFF", 4);
+  put32(4, uint32_t(36 + data_len));
+  std::memcpy(&wav[8], "WAVEfmt ", 8);
+  put32(16, 16);
+  put16(20, 1);
+  put16(22, channels);
+  put32(24, rate);
+  put32(28, rate * channels * 2);
+  put16(32, uint16_t(channels * 2));
+  put16(34, 16);
+  std::memcpy(&wav[36], "data", 4);
+  put32(40, uint32_t(data_len));
+  for (size_t i = 0; i + 1 < data_len; i += 2) {
+    int16_t s;
+    std::memcpy(&s, &in[data_off + i], 2);
+    const int16_t scaled = int16_t(std::clamp(float(s) * volume, -32768.0f, 32767.0f));
+    std::memcpy(&wav[44 + i], &scaled, 2);
+  }
+  return wav;
+}
+
+}  // namespace
+
 void PlayAchievementSound(const std::filesystem::path& user_dir) {
 #if defined(_WIN32)
   if (!REXCVAR_GET(okx_achievement_sound)) return;
-  std::error_code ec;
-  const auto custom = user_dir / "achievement.wav";
-  if (!user_dir.empty() && std::filesystem::exists(custom, ec)) {
-    PlaySoundW(custom.c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
-    return;
-  }
-  // PlaySound reads SND_MEMORY data while playing asynchronously, so keep it alive.
+  // PlaySound reads SND_MEMORY data while playing asynchronously, so keep the
+  // buffer alive and only rebuild it when the sound or volume changes.
   static std::vector<uint8_t> wav;
-  static int wav_volume = -1;
+  static std::string wav_key;
   const int volume = std::clamp(REXCVAR_GET(okx_achievement_volume), 0, 100);
-  if (volume != wav_volume) {
+  std::filesystem::path file;
+  if (const std::string& name = REXCVAR_GET(okx_achievement_sound_file); !name.empty() && !user_dir.empty()) {
+    std::error_code ec;
+    file = SoundsDir(user_dir) / name;
+    if (!std::filesystem::exists(file, ec)) file.clear();
+  }
+  const std::string key = file.string() + "|" + std::to_string(volume);
+  if (key != wav_key) {
     PlaySoundW(nullptr, nullptr, 0);  // stop before replacing the buffer
-    wav = MakeChimeWav(volume / 100.0f);
-    wav_volume = volume;
+    wav = file.empty() ? std::vector<uint8_t>{} : LoadWavScaled(file, volume / 100.0f);
+    if (wav.empty()) wav = MakeChimeWav(volume / 100.0f);
+    wav_key = key;
   }
   PlaySoundW(reinterpret_cast<LPCWSTR>(wav.data()), nullptr, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
 #else

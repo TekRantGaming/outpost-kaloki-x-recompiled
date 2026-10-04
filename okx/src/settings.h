@@ -23,6 +23,7 @@ REXCVAR_DECLARE(int32_t, okx_deadzone);
 REXCVAR_DECLARE(int32_t, okx_camera_sensitivity);
 REXCVAR_DECLARE(bool, okx_achievement_toasts);
 REXCVAR_DECLARE(bool, okx_achievement_sound);
+REXCVAR_DECLARE(std::string, okx_achievement_sound_file);
 REXCVAR_DECLARE(int32_t, okx_achievement_volume);
 REXCVAR_DECLARE(bool, okx_vibration);
 REXCVAR_DECLARE(int32_t, okx_vibration_strength);

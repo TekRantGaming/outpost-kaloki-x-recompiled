@@ -56,8 +56,14 @@ class AchievementToast final : public rex::ui::AchievementNotificationDialog {
   std::map<uint32_t, std::unique_ptr<rex::ui::ImmediateTexture>> icons_;
 };
 
-// Plays the achievement chime (respects okx_achievement_sound / _volume).
+// Plays the achievement sound: okx_achievement_sound_file from the sounds
+// folder, or the built-in chime (respects okx_achievement_sound / _volume).
 void PlayAchievementSound(const std::filesystem::path& user_dir);
+
+// Sounds the player has added: <save folder>/sounds/*.wav (file names).
+std::filesystem::path SoundsDir(const std::filesystem::path& user_dir);
+std::vector<std::filesystem::path> ListSounds(const std::filesystem::path& user_dir);
+std::string SoundLabel(const std::filesystem::path& file);  // "xbox_360.wav" -> "Xbox 360"
 
 // --- Port achievements (separate from the game's own 12) ---------------------
 struct PortAchievement {
