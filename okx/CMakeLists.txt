@@ -23,6 +23,7 @@ set(OUTPOSTKALOKIX_SOURCES
     src/stfs.cpp
     src/art.cpp
     src/overlay.cpp
+    src/toast.cpp
 )
 
 if(WIN32)

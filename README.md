@@ -79,10 +79,13 @@ which is no longer possible). Use `okx\run.bat --license_mask=0` to play the tri
   - **Gameplay**: **frame-rate cap (30 / 60 / 120 / 144 / 165 / 240 / unlimited)**, frame counter (F2), language
   - **Controls**: invert the camera and left stick per axis, camera speed, stick deadzone, vibration strength,
     remap any controller button, keyboard & mouse play with rebindable keys
-  - **Achievements**: all 12 with their icons and your unlock progress
+  - **Achievements**: all 12 with their icons and your unlock progress, notification settings and a test button
   - **About**: open your save / game folders and settings file, reset settings
 - **Unlocked frame rate**: the Xbox 360 version ran at 30 FPS; this port defaults to 60 and can go higher.
   The game times everything by real elapsed time, so it runs at the correct speed at any frame rate.
+- **Achievement pop-ups** in the style of the Xbox 360, with a chime, whenever you unlock one in game (drop your
+  own `achievement.wav` in the save folder to change the sound). A bonus "Welcome" achievement unlocks the first
+  time you play.
 - Full game unlocked by default.
 
 ## How it works

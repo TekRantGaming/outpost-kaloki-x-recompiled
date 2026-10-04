@@ -20,6 +20,9 @@ REXCVAR_DEFINE_STRING(okx_render_quality, "native", "OKX/Video",
 REXCVAR_DEFINE_BOOL(okx_show_fps, false, "OKX/Video", "Show a frame-rate counter (toggle in game with F2)");
 REXCVAR_DEFINE_INT32(okx_deadzone, 0, "OKX/Controls", "Extra stick deadzone in percent (0-50)");
 REXCVAR_DEFINE_INT32(okx_camera_sensitivity, 100, "OKX/Controls", "Camera (right stick) sensitivity in percent");
+REXCVAR_DEFINE_BOOL(okx_achievement_toasts, true, "OKX/Achievements", "Show achievement notifications");
+REXCVAR_DEFINE_BOOL(okx_achievement_sound, true, "OKX/Achievements", "Play the achievement sound");
+REXCVAR_DEFINE_INT32(okx_achievement_volume, 80, "OKX/Achievements", "Achievement sound volume in percent");
 REXCVAR_DEFINE_BOOL(okx_vibration, true, "OKX/Controls", "Controller vibration");
 REXCVAR_DEFINE_INT32(okx_vibration_strength, 100, "OKX/Controls", "Vibration strength in percent");
 REXCVAR_DEFINE_BOOL(okx_invert_rs_x, false, "OKX/Controls", "Invert right stick horizontal (camera)");

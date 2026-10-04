@@ -37,6 +37,7 @@
 #include "platform.h"
 #include "settings.h"
 #include "stfs.h"
+#include "toast.h"
 
 namespace okx {
 namespace {
@@ -232,6 +233,7 @@ class Launcher final : public rex::ui::ImGuiDialog {
     for (const char* name : kRestartCvars) restart_baseline_.push_back(Get(name));
     files_ok_ = GameFilesPresent(paths_.game_dir);
     LoadArt();
+    toast_ = std::make_unique<AchievementToast>(drawer, immediate_, paths_.game_dir, paths_.user_dir);
   }
 
   ~Launcher() override {
@@ -921,6 +923,39 @@ class Launcher final : public rex::ui::ImGuiDialog {
 
   // ------------------------------------------------------- Achievements ---
   void PageAchievements() {
+    if (BeginRows("##ach_settings")) {
+      Row("Notifications", "An Xbox 360-style pop-up when you unlock an achievement in game.");
+      ToggleCvar("okx_achievement_toasts", "Off", "On");
+      Row("Sound", "The chime that plays with each pop-up. Put your own achievement.wav in the save folder to "
+                   "replace it.");
+      ToggleCvar("okx_achievement_sound", "Off", "On");
+      if (GetBool("okx_achievement_sound")) {
+        Row("Volume", "");
+        SliderCvar("okx_achievement_volume", 0, 100, "%d%%");
+      }
+      Row("Test", "Shows a sample notification right now.");
+      if (AccentButton("Test notification", ImVec2(-FLT_MIN, 0))) {
+        if (!GetBool("okx_achievement_toasts")) status_ = "Notifications are off; switch them on to see the test.";
+        const uint32_t icon = achievements_.empty() ? 0 : achievements_[test_index_++ % achievements_.size()].id;
+        toast_->Show("Test achievement", 10, icon);
+      }
+      EndRows();
+    }
+    ImGui::Dummy(ImVec2(0, 10 * s_));
+
+    ImGui::PushFont(GetUiFonts().semibold, 0.0f);
+    ImGui::TextUnformatted("PC port");
+    ImGui::PopFont();
+    for (const auto& pa : PortAchievements()) {
+      Achievement card;
+      card.label = pa.title;
+      card.description = pa.description;
+      card.unlocked = IsPortAchievementUnlocked(paths_.user_dir, pa.id);
+      card.icon = title_icon_;
+      DrawAchievementCard(card, ImGui::GetContentRegionAvail().x);
+    }
+    ImGui::Dummy(ImVec2(0, 10 * s_));
+
     if (achievements_.empty()) {
       ImGui::TextDisabled("Install the game to see its achievements.");
       return;
@@ -946,33 +981,38 @@ class Launcher final : public rex::ui::ImGuiDialog {
     const float avail = ImGui::GetContentRegionAvail().x;
     const int cols = avail > 700 * s_ ? 2 : 1;
     const float gap = 12 * s_;
-    const float card_w = (avail - gap * float(cols - 1)) / float(cols), card_h = 86 * s_, icon = 60 * s_;
-    const UiFonts& f = GetUiFonts();
+    const float card_w = (avail - gap * float(cols - 1)) / float(cols);
     for (size_t i = 0; i < achievements_.size(); ++i) {
-      const auto& a = achievements_[i];
       if (i % cols) ImGui::SameLine(0, gap);
-      const ImVec2 p = ImGui::GetCursorScreenPos();
-      ImGui::Dummy(ImVec2(card_w, card_h));
-      ImDrawList* dl = ImGui::GetWindowDrawList();
-      dl->AddRectFilled(p, ImVec2(p.x + card_w, p.y + card_h), Col(a.unlocked ? kFrameHot : kFrame), 10 * s_);
-      if (a.unlocked) dl->AddRectFilled(p, ImVec2(p.x + 4 * s_, p.y + card_h), Col(kAccent), 10 * s_, ImDrawFlags_RoundCornersLeft);
-      const ImVec2 i0(p.x + 14 * s_, p.y + (card_h - icon) * 0.5f);
-      if (a.icon)
-        dl->AddImageRounded(Tex(a.icon), i0, ImVec2(i0.x + icon, i0.y + icon), ImVec2(0, 0), ImVec2(1, 1),
-                            a.unlocked ? IM_COL32_WHITE : IM_COL32(105, 110, 125, 200), 8 * s_);
-      const float tx = i0.x + icon + 14 * s_;
-      const float right = p.x + card_w - 14 * s_;
-      const std::string title = a.label.empty() ? "Achievement " + std::to_string(a.id) : a.label;
-      dl->AddText(f.semibold, 18 * s_, ImVec2(tx, p.y + 12 * s_), a.unlocked ? IM_COL32_WHITE : Col(kDim), title.c_str());
-      if (a.gamerscore) {
-        const std::string g = std::to_string(a.gamerscore) + " G";
-        const ImVec2 gs = f.semibold->CalcTextSizeA(16 * s_, FLT_MAX, 0, g.c_str());
-        dl->AddText(f.semibold, 16 * s_, ImVec2(right - gs.x, p.y + 13 * s_), Col(a.unlocked ? kAccent : kDim), g.c_str());
-      }
-      const std::string& desc = a.unlocked || a.unachieved.empty() ? a.description : a.unachieved;
-      dl->AddText(f.regular, 15 * s_, ImVec2(tx, p.y + 38 * s_), Col(kDim), desc.c_str(), nullptr, right - tx);
-      if (a.unlocked) dl->AddText(f.semibold, 13 * s_, ImVec2(tx, p.y + card_h - 22 * s_), Col(kAccent), "UNLOCKED");
+      DrawAchievementCard(achievements_[i], card_w);
     }
+  }
+
+  void DrawAchievementCard(const Achievement& a, float card_w) {
+    const float card_h = 86 * s_, icon = 60 * s_;
+    const UiFonts& f = GetUiFonts();
+    const ImVec2 p = ImGui::GetCursorScreenPos();
+    ImGui::Dummy(ImVec2(card_w, card_h));
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(p, ImVec2(p.x + card_w, p.y + card_h), Col(a.unlocked ? kFrameHot : kFrame), 10 * s_);
+    if (a.unlocked)
+      dl->AddRectFilled(p, ImVec2(p.x + 4 * s_, p.y + card_h), Col(kAccent), 10 * s_, ImDrawFlags_RoundCornersLeft);
+    const ImVec2 i0(p.x + 14 * s_, p.y + (card_h - icon) * 0.5f);
+    if (a.icon)
+      dl->AddImageRounded(Tex(a.icon), i0, ImVec2(i0.x + icon, i0.y + icon), ImVec2(0, 0), ImVec2(1, 1),
+                          a.unlocked ? IM_COL32_WHITE : IM_COL32(105, 110, 125, 200), 8 * s_);
+    const float tx = i0.x + icon + 14 * s_;
+    const float right = p.x + card_w - 14 * s_;
+    const std::string title = a.label.empty() ? "Achievement " + std::to_string(a.id) : a.label;
+    dl->AddText(f.semibold, 18 * s_, ImVec2(tx, p.y + 12 * s_), a.unlocked ? IM_COL32_WHITE : Col(kDim), title.c_str());
+    if (a.gamerscore) {
+      const std::string g = std::to_string(a.gamerscore) + " G";
+      const ImVec2 gs = f.semibold->CalcTextSizeA(16 * s_, FLT_MAX, 0, g.c_str());
+      dl->AddText(f.semibold, 16 * s_, ImVec2(right - gs.x, p.y + 13 * s_), Col(a.unlocked ? kAccent : kDim), g.c_str());
+    }
+    const std::string& desc = a.unlocked || a.unachieved.empty() ? a.description : a.unachieved;
+    dl->AddText(f.regular, 15 * s_, ImVec2(tx, p.y + 38 * s_), Col(kDim), desc.c_str(), nullptr, right - tx);
+    if (a.unlocked) dl->AddText(f.semibold, 13 * s_, ImVec2(tx, p.y + card_h - 22 * s_), Col(kAccent), "UNLOCKED");
   }
 
   // -------------------------------------------------------------- About ---
@@ -1128,6 +1168,8 @@ class Launcher final : public rex::ui::ImGuiDialog {
   rex::ui::ImmediateTexture* title_icon_ = nullptr;
   std::vector<Achievement> achievements_;
   bool have_achievement_names_ = false;
+  std::unique_ptr<AchievementToast> toast_;
+  size_t test_index_ = 0;
 
   stfs::Progress progress_;
   std::thread install_thread_;

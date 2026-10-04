@@ -14,6 +14,7 @@
 #include <chrono>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -43,20 +44,30 @@ double g_window_swap_ms = 0;  // time spent inside the swap call this window
 double g_window_delta = 0;    // sum of the title's per-frame delta this window
 rex::ui::FrameStats g_stats;
 
-std::function<void()> g_deferred;
-double g_deferred_after = 0;
+struct Deferred {
+  double after;
+  std::function<void()> fn;
+};
+std::vector<Deferred> g_deferred;
 Clock::time_point g_first_frame{};
 
 void RunDeferredIfDue(Clock::time_point now) {
-  std::function<void()> fn;
+  std::vector<std::function<void()>> due;
   {
     std::lock_guard lock(g_mutex);
     if (g_first_frame == Clock::time_point{}) g_first_frame = now;
-    if (!g_deferred || std::chrono::duration<double>(now - g_first_frame).count() < g_deferred_after) return;
-    fn = std::move(g_deferred);
-    g_deferred = nullptr;
+    if (g_deferred.empty()) return;
+    const double elapsed = std::chrono::duration<double>(now - g_first_frame).count();
+    for (auto it = g_deferred.begin(); it != g_deferred.end();) {
+      if (elapsed >= it->after) {
+        due.push_back(std::move(it->fn));
+        it = g_deferred.erase(it);
+      } else {
+        ++it;
+      }
+    }
   }
-  fn();
+  for (auto& fn : due) fn();
 }
 
 void OnGuestSwap() {
@@ -99,8 +110,7 @@ rex::ui::FrameStats GetGuestFrameStats() {
 
 void RunAfterFirstFrame(double seconds, std::function<void()> fn) {
   std::lock_guard lock(g_mutex);
-  g_deferred = std::move(fn);
-  g_deferred_after = seconds;
+  g_deferred.push_back({seconds, std::move(fn)});
 }
 
 }  // namespace okx

@@ -30,6 +30,7 @@
 #include "overlay.h"
 #include "platform.h"
 #include "settings.h"
+#include "toast.h"
 
 class OutpostKalokiXApp : public rex::ReXApp {
  public:
@@ -107,6 +108,7 @@ class OutpostKalokiXApp : public rex::ReXApp {
       okx::art::WriteAchievementCache(achievements().ListAchievements(),
                                       okx::art::AchievementCachePath(user_data_root_));
     ScheduleTitleCapture();
+    ScheduleWelcomeAchievement();
 
     // Debug aid: set OKX_DUMP_IMAGE=<file> to write the decrypted guest image
     // (0x82000000-0x823A0000) for offline analysis.
@@ -121,6 +123,14 @@ class OutpostKalokiXApp : public rex::ReXApp {
   void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {
     SetGuestFrameStats(okx::GetGuestFrameStats);  // F3 overlay "Guest: N FPS"
     okx::CreateFpsOverlay(drawer);
+  }
+
+  // Xbox 360-style toast with a chime for the game's achievements.
+  std::unique_ptr<rex::ui::AchievementNotificationDialog> CreateAchievementNotificationDialog() override {
+    auto toast = std::make_unique<okx::AchievementToast>(imgui_drawer(), immediate_drawer(), game_data_root(),
+                                                         user_data_root_);
+    toast_ = toast.get();
+    return toast;
   }
 
  private:
@@ -147,5 +157,16 @@ class OutpostKalokiXApp : public rex::ReXApp {
     });
   }
 
+  // The port's own "Welcome" achievement: unlocks a few seconds into the first
+  // play so players learn the game has achievements.
+  void ScheduleWelcomeAchievement() {
+    const auto& welcome = okx::PortAchievements().front();
+    if (user_data_root_.empty() || okx::IsPortAchievementUnlocked(user_data_root_, welcome.id)) return;
+    okx::RunAfterFirstFrame(6.0, [this, &welcome] {
+      if (okx::UnlockPortAchievement(user_data_root_, welcome.id) && toast_) toast_->Show(welcome.title, 0, 0);
+    });
+  }
+
   std::filesystem::path user_data_root_;
+  okx::AchievementToast* toast_ = nullptr;  // owned by ReXApp
 };

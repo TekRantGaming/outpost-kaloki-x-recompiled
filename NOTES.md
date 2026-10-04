@@ -113,6 +113,18 @@ there from an XBLA package); `run.bat` points at `okx\assets` instead.
 - Port defaults (`ApplyPortDefaults`, changed *defaults* so config/CLI still win): `license_mask=1`,
   `fullscreen=false`.
 
+## Achievement notifications (src/toast.cpp)
+- Game unlocks arrive as XGI message 0x000B0025 (XMsgStartIORequest; the title has no XamUserWriteAchievements
+  import) → ReXGlue `KernelState::UnlockAchievement` → notification callback → our
+  `CreateAchievementNotificationDialog()` override (`okx::AchievementToast`).
+- 360-style toast: green orb with the achievement's own icon pops in, dark pill unfolds with
+  "Achievement unlocked" / "<n>G - <name>", holds ~4.6 s, folds away; bottom-centre, foreground draw list.
+- Chime is an original sound synthesized at runtime (PlaySound, SND_MEMORY). `achievement.wav` in the save
+  folder replaces it (Microsoft's sound and Xbox logo are not used). Settings: okx_achievement_toasts/_sound/_volume.
+- Port achievement "Welcome to Outpost Kaloki X" unlocks 6 s after the first frame of the first play; stored in
+  `launcher/port_achievements.txt`, kept out of ReXGlue's AchievementManager so the game never sees an unknown ID.
+- Launcher Achievements page: notification settings, Test notification button, PC-port section.
+
 ## Dev tools
 - `OKX_PROFILE=<s>` → profile.txt per-thread hotspots (symbolize with VS `llvm-symbolizer --relative-address`).
 - `OKX_DUMP_IMAGE=<file>` → decrypted guest image. `tools/snap_window.ps1`, `tools/click_window.ps1`
