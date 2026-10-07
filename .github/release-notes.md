@@ -27,6 +27,7 @@ The launcher checks both and tells you if your package is a different version.
 - **No missing effects on first sight:** effects wait to be prepared the first time they appear (Graphics page: Shader preparing).
 - Settings given on the command line no longer erase your saved choices.
 - Checked: saving and loading work, and the Leaderboards menu shows the game's own "not signed in to Xbox Live" message.
+- VirusTotal scans, both clean: [Windows zip](https://www.virustotal.com/gui/file/885853359de0a11c0de3d9263558bc4000f88f81a604a9f9c5ad1350c83f7eca), [Linux AppImage](https://www.virustotal.com/gui/file/bac70557a432e36d8488c483ed917062b717d26704861277f57c38bb2611150c).
 
 ### What's in it
 - A launcher with art from your copy of the game
