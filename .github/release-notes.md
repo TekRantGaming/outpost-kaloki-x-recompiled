@@ -1,6 +1,9 @@
-## Outpost Kaloki X PC Port
+## Outpost Kaloki X PC Port v1.0.1
 
 Play the Xbox 360 edition of Outpost Kaloki X natively on Windows, with a launcher and modern PC options.
+
+### New in v1.0.1
+- **No more antivirus warnings.** Some antivirus programs, including Microsoft Defender, wrongly flagged `rexruntime.dll` from the ReXGlue SDK as a threat. The builder now uses `rexruntime.dll` rebuilt from the same ReXGlue v0.10.0 source, which they don't flag (antivirus false positive, rexglue/rexglue-sdk#485). Nothing else changed: the game plays exactly like v1.0.0. If you built v1.0.0, run the new builder again.
 
 ### How to install
 1. Download the **OutpostKalokiX-Builder** zip below and unzip it.

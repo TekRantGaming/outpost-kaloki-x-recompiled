@@ -26,6 +26,23 @@ if (-not (Test-Path $rexglue)) {
     Expand-Archive -Path $zip -DestinationPath $sdkDir -Force
 }
 
+# 1b. Swap in the clean rexruntime.dll. The official v0.10.0 build is an antivirus
+#     false positive (Trojan:Win32/Wacatac.B!ml, rexglue/rexglue-sdk#485); this one is
+#     built from the same v0.10.0 source, unmodified. Builds copy it next to the exe.
+$officialHash = 'E359209FB2B0570E693C966D4C1D99A82465D36EF70D033833FAE56ADB2F1B7A'
+$cleanHash = 'E87C3555602C41B18579EF8932639F7AFC9324B0CA448F6E7608010D10EDBBC3'
+$cleanDll = Join-Path $root 'tools\rexruntime-fix\rexruntime.dll'
+$sdkDll = Join-Path $sdkDir 'win-amd64\bin\rexruntime.dll'
+if ((Get-FileHash $cleanDll -Algorithm SHA256).Hash -ne $cleanHash) { throw "tools\rexruntime-fix\rexruntime.dll is not the expected file" }
+$current = (Get-FileHash $sdkDll -Algorithm SHA256).Hash
+if ($current -eq $officialHash) {
+    Copy-Item $sdkDll "$sdkDll.official-v$sdkVersion" -Force
+    Copy-Item $cleanDll $sdkDll -Force
+    Write-Host "Using the clean rexruntime.dll (antivirus false-positive fix)."
+} elseif ($current -ne $cleanHash) {
+    Write-Warning "Unexpected rexruntime.dll in the SDK; leaving it as is."
+}
+
 # 2. Extract the game package into okx/assets
 $assets = Join-Path $root 'okx\assets'
 Write-Host "Extracting $Package -> $assets"

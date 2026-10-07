@@ -137,3 +137,9 @@ there from an XBLA package); `run.bat` points at `okx\assets` instead.
 - Play-test with a controller: camera inversion, remapping, keyboard mode, gameplay at 60+ FPS (check physics/
   animation timing in actual gameplay, not just the title screen), saving, achievements, audio.
 - Report the FPSCR bug and the submit-on-primary-buffer-end stall upstream.
+
+## Antivirus false positive (v1.0.1)
+- The official ReXGlue v0.10.0 `rexruntime.dll` (`e359209f...`) is flagged by Defender (`Wacatac.B!ml`, rexglue/rexglue-sdk#485).
+  `tools/rexruntime-fix/rexruntime.dll` (`e87c3555...`) is the same v0.10.0 source rebuilt unmodified; `setup.ps1` checks both hashes
+  and swaps it into the SDK (official kept as `rexruntime.dll.official-v0.10.0`). All 338 exe and 103 xenos imports are exported.
+  Keep the official `rexgpu-xenos.dll` (a rebuilt one aborts at startup).
