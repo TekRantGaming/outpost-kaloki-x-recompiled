@@ -9,11 +9,8 @@
 #>
 param(
     # Path to your own dump of the Outpost Kaloki X XBLA package (STFS "LIVE" file).
-    [string]$Package,
-    # Or a folder with the game files already extracted (the launcher's game folder).
-    [string]$GameDir
+    [Parameter(Mandatory = $true)][string]$Package
 )
-if (-not $Package -and -not $GameDir) { throw "Give -Package <your XBLA package> or -GameDir <extracted game files>." }
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $sdkVersion = '0.10.0'
@@ -46,17 +43,10 @@ if ($current -eq $officialHash) {
     Write-Warning "Unexpected rexruntime.dll in the SDK; leaving it as is."
 }
 
-# 2. Extract the game package (or copy the extracted game files) into okx/assets
+# 2. Extract the game package into okx/assets
 $assets = Join-Path $root 'okx\assets'
-if ($Package) {
-    Write-Host "Extracting $Package -> $assets"
-    & (Join-Path $root 'tools\extract_stfs.ps1') -Package $Package -OutDir $assets
-} else {
-    if (-not (Test-Path (Join-Path $GameDir 'default.xex'))) { throw "default.xex not found in $GameDir" }
-    Write-Host "Copying game files $GameDir -> $assets"
-    New-Item -ItemType Directory -Force $assets | Out-Null
-    Copy-Item (Join-Path $GameDir '*') $assets -Recurse -Force
-}
+Write-Host "Extracting $Package -> $assets"
+& (Join-Path $root 'tools\extract_stfs.ps1') -Package $Package -OutDir $assets
 if (-not (Test-Path (Join-Path $assets 'default.xex'))) { throw "default.xex not found after extraction" }
 
 # 2b. The port (hooks, addresses, overrides.toml) is made for one exact

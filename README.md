@@ -6,13 +6,13 @@
 
 [![Latest release](https://img.shields.io/github/v/release/TekRantGaming/outpost-kaloki-x-recompiled?style=for-the-badge&label=release&color=8bd550&labelColor=07101f)](https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/TekRantGaming/outpost-kaloki-x-recompiled/total?style=for-the-badge&color=2e7d32&labelColor=07101f)](https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases)
-![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20soon-00acc1?style=for-the-badge&labelColor=07101f)
+![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-00acc1?style=for-the-badge&labelColor=07101f)
 
 ### Outpost Kaloki X on PC, running natively, with the launcher and options of a modern PC release.
 
-[<img src="https://img.shields.io/badge/Download-Windows%20Builder-8bd550?style=for-the-badge&logo=windows&logoColor=white&labelColor=07101f" alt="Download for Windows" height="40">](https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases/latest)
+[<img src="https://img.shields.io/badge/Download-Windows-8bd550?style=for-the-badge&logo=windows&logoColor=white&labelColor=07101f" alt="Download for Windows" height="40">](https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases/latest)
 &nbsp;
-<img src="https://img.shields.io/badge/Linux%20AppImage-coming%20soon-555555?style=for-the-badge&logo=linux&logoColor=white&labelColor=07101f" alt="Linux coming soon" height="40">
+[<img src="https://img.shields.io/badge/Download-Linux%20AppImage-00acc1?style=for-the-badge&logo=linux&logoColor=white&labelColor=07101f" alt="Download the Linux AppImage" height="40">](https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases/latest)
 
 <sub>The original Xbox 360 game code, translated to native PC code with the <a href="https://github.com/rexglue/rexglue-sdk">ReXGlue SDK</a>. <b>No game files included</b>: bring your own copy of the Outpost Kaloki X Xbox Live Arcade package.</sub>
 
@@ -58,8 +58,8 @@ Invert the camera, change its speed, set a deadzone, remap any button, adjust vi
 </td>
 <td valign="top">
 
-**One-click builder**<br>
-Double-click, pick your game file, and the builder makes the PC version for you. No technical steps.
+**Ready to play**<br>
+Unzip, run, and install the game from your own package in the launcher. Updates arrive with one click.
 
 </td>
 </tr>
@@ -169,7 +169,7 @@ Everything is set up before the game starts. The launcher uses art from your own
 <td valign="middle">
 
 ### About
-- **Updates**: the launcher can check GitHub for a new version and update with one click. It downloads the new builder and rebuilds the game from your installed files, keeping your settings and saves
+- **Updates**: the launcher checks GitHub for a new version when it opens and updates with one click, keeping your game files, settings and saves
 - Open your **save folder**, **game folder** or **settings file** in one click
 - **Reset** every setting
 - Refresh the launcher's title screen art
@@ -227,17 +227,26 @@ Everything is set up before the game starts. The launcher uses art from your own
 
 ## Getting started
 
-**You need:** Windows 10 or 11 (64-bit), a graphics card with DirectX 12, and your own Outpost Kaloki X Xbox Live Arcade package (the file with no extension from your Xbox 360 or emulator content folder, title ID `584107DB`).
+**You need:** Windows 10 or 11 (64-bit) and a graphics card with DirectX 12, **or** 64-bit Linux with Vulkan, plus your own Outpost Kaloki X Xbox Live Arcade package, this exact release:
 
-1. Download the **Windows builder** from the [latest release](https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases/latest) and unzip it.
-2. Double-click **Build Outpost Kaloki X.bat**.
-3. If it asks, let it install the build tools (Visual Studio Build Tools, CMake and Ninja). This is a one-time download of about 6 GB.
-4. Pick your Outpost Kaloki X package when asked.
-5. Wait while it builds (10 to 20 minutes). The finished game appears in the **OutpostKalokiX** folder, with an optional desktop shortcut.
+| | |
+| --- | --- |
+| Title ID | `584107DB` (Xbox Live Arcade, content type `000D0000`) |
+| Package size | 21,557,248 bytes (the file with no extension from your Xbox 360 or emulator content folder) |
+| Game version | `default.xex` 0.0.1.1 (2005-11-04), 3,252,224 bytes, CRC32 `CCB0ACE9` |
 
-**Why a builder and not a ready-made download?** The PC version is made from the game's own code, which belongs to its creators and can't be shared. The builder makes it on your PC from your own copy, so nothing from the game is ever downloaded or uploaded.
+The launcher checks both and tells you if your package is a different version.
 
-**Linux:** an AppImage is coming soon.
+1. Download **OutpostKalokiX-v...-windows-x64.zip** from the [latest release](https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases/latest) and unzip it anywhere.
+2. Run **outpost_kaloki_x.exe**. The launcher opens.
+3. On the **Play** page click **Install from package...** and pick your package. Its files are copied into a `game` folder next to the program.
+4. Press **PLAY**.
+
+**Linux:** download **OutpostKalokiX-v...-linux-x86_64.AppImage** instead, make it executable (right-click > Properties > Permissions, or `chmod +x`), run it and install from your package the same way. The game files, settings and logs go next to the AppImage.
+
+**Updates:** when the launcher opens it checks this repository's releases and offers new versions (About page: **Updates**). Your game files, saves and settings are kept.
+
+**No game files are included.** The download is only the port: the game's files come from your own package.
 
 <details>
 <summary><b>Building by hand (for developers)</b></summary>
@@ -245,7 +254,10 @@ Everything is set up before the game starts. The launcher uses art from your own
 ```powershell
 .\setup.ps1 -Package "C:\path\to\Outpost Kaloki X"   # downloads the SDK, unpacks your game, translates the code
 okx\build.bat okx-release                             # compiles
+.\tools\package_windows.ps1 -Version v1.1.0           # optional: the release zip in dist\
 ```
+
+`Build Outpost Kaloki X.bat` does the first two steps in one go, installing the build tools if needed. For Linux, run `tools/build_appimage.sh v1.1.0` in Linux or WSL after `setup.ps1`.
 
 The finished game is in `okx\out\build\okx-release`. Point it at your game files with `--game_data_root`, or copy them into a `game` folder next to the exe. Technical notes on every fix are in [NOTES.md](NOTES.md).
 

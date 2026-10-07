@@ -1,19 +1,32 @@
-## Outpost Kaloki X PC Port v1.0.1
+## Outpost Kaloki X PC Port v1.1.0
 
-Play the Xbox 360 edition of Outpost Kaloki X natively on Windows, with a launcher and modern PC options.
+Play the Xbox 360 edition of Outpost Kaloki X natively on Windows and Linux, with a launcher and modern PC options.
 
-### New in v1.0.1
-- **No more antivirus warnings.** Some antivirus programs, including Microsoft Defender, wrongly flagged `rexruntime.dll` from the ReXGlue SDK as a threat. The builder now uses `rexruntime.dll` rebuilt from the same ReXGlue v0.10.0 source, which they don't flag (antivirus false positive, rexglue/rexglue-sdk#485). Nothing else changed: the game plays exactly like v1.0.0. If you built v1.0.0, run the new builder again.
-- [VirusTotal scan of this zip](https://www.virustotal.com/gui/file/f5e027c7906f5945fd5cc5aefa81f2e83df24ced65d8f73d593e9cfa9376831f): clean.
+### Install
+1. Unzip **OutpostKalokiX-v1.1.0-windows-x64.zip** anywhere and run **outpost_kaloki_x.exe**.
+2. On the launcher's **Play** page click **Install from package...** and pick your own Outpost Kaloki X Xbox Live Arcade package.
+3. Press **PLAY**.
 
-### How to install
-1. Download the **OutpostKalokiX-Builder** zip below and unzip it.
-2. Double-click **Build Outpost Kaloki X.bat**.
-3. Let it install the build tools if it asks (a one-time download of about 6 GB).
-4. Pick your own Outpost Kaloki X Xbox Live Arcade package (title ID `584107DB`).
-5. After 10 to 20 minutes the game is ready in the **OutpostKalokiX** folder.
+**Linux:** download **OutpostKalokiX-v1.1.0-linux-x86_64.AppImage** instead, make it executable, run it and install from your package the same way.
 
-The builder makes the PC version on your computer from your own copy of the game. **No game files are included or downloaded.**
+**No game files are included.** You need your own package, this exact release:
+
+| | |
+| --- | --- |
+| Title ID | `584107DB` (Xbox Live Arcade, content type `000D0000`) |
+| Package size | 21,557,248 bytes |
+| Game version | `default.xex` 0.0.1.1 (2005-11-04), 3,252,224 bytes, CRC32 `CCB0ACE9` |
+
+The launcher checks both and tells you if your package is a different version.
+
+### New in v1.1.0
+- **Ready to play:** a normal download now, no more building it yourself. If you built v1.0.x, download this one and install your package in its launcher (your saves are kept in Documents\outpost_kaloki_x).
+- **Linux AppImage.**
+- **Updates:** the launcher checks GitHub when it opens and updates with one click (About page: Updates).
+- **Letterbox works at any window size:** the picture keeps its 16:9 shape in a 4:3 or other window.
+- **No missing effects on first sight:** effects wait to be prepared the first time they appear (Graphics page: Shader preparing).
+- Settings given on the command line no longer erase your saved choices.
+- Checked: saving and loading work, and the Leaderboards menu shows the game's own "not signed in to Xbox Live" message.
 
 ### What's in it
 - A launcher with art from your copy of the game
@@ -23,6 +36,6 @@ The builder makes the PC version on your computer from your own copy of the game
 - Camera inversion and speed, deadzone, vibration, button remapping, keyboard and mouse
 - The full game unlocked
 
-Linux AppImage coming soon.
+Requires Windows 10 or 11 (64-bit) and a DirectX 12 graphics card, or 64-bit Linux with Vulkan.
 
 This build was made with AI (Claude Code). See the README for details.

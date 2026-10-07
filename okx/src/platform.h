@@ -33,6 +33,10 @@ void RelaunchSelf(std::wstring_view extra_args);
 // Opens a folder (created if missing) or file in the system file browser.
 void OpenInExplorer(const std::filesystem::path& path);
 
+// Linux: puts the float-trap guard (fpe_guard.cpp) in front of the runtime's
+// signal handlers; call after setup. Windows needs nothing.
+void InstallFpeGuard();
+
 // Adds system UI fonts to the ImGui atlas; the regular face becomes the default.
 void LoadUiFont(ImFontAtlas* atlas);
 

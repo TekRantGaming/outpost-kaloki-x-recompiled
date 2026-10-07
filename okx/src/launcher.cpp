@@ -23,6 +23,10 @@
 #include <windows.h>
 #include <commdlg.h>
 #pragma comment(lib, "comdlg32.lib")
+#else
+#include <dlfcn.h>
+#include <sys/wait.h>
+#include <cstdio>
 #endif
 
 #include <imgui.h>
@@ -192,7 +196,22 @@ std::filesystem::path BrowseForPackage() {
   return GetOpenFileNameW(&ofn) ? std::filesystem::path(file) : std::filesystem::path();
 }
 #else
-std::filesystem::path BrowseForPackage() { return {}; }
+// zenity (GNOME, Steam Deck) or kdialog (KDE), whichever is installed.
+std::filesystem::path BrowseForPackage() {
+  for (const char* cmd : {"zenity --file-selection --title='Select your Outpost Kaloki X XBLA package' 2>/dev/null",
+                          "kdialog --getopenfilename ~ 2>/dev/null"}) {
+    FILE* p = popen(cmd, "r");
+    if (!p) continue;
+    std::string out;
+    char buf[1024];
+    for (size_t n; (n = fread(buf, 1, sizeof(buf), p)) > 0;) out.append(buf, n);
+    const int status = pclose(p);
+    while (!out.empty() && (out.back() == '\n' || out.back() == '\r')) out.pop_back();
+    if (status == 0 && !out.empty()) return out;
+    if (status == 0 || WEXITSTATUS(status) == 1) return {};  // the dialog ran and was cancelled
+  }
+  return {};
+}
 #endif
 
 // Settings that the presenter/window read before the launcher runs; changing
@@ -618,8 +637,8 @@ class Launcher final : public rex::ui::ImGuiDialog {
     if (!BeginRows("##play")) return;
     if (update_found_) {
       Row("Update available",
-          "A new version of the port. Updating downloads its builder from GitHub and rebuilds the game on this PC "
-          "from your installed game files, in its own window (10 to 20 minutes). Settings and saves are kept.");
+          "A new version of the port. Updating downloads it from GitHub, replaces the program and restarts the "
+          "launcher. Your game files, settings and saves are kept.");
       DrawUpdateButton();
     }
     Row("XBLA package",
@@ -1228,14 +1247,14 @@ class Launcher final : public rex::ui::ImGuiDialog {
     });
   }
 
-  void StartUpdateRebuild() {
+  void StartUpdateInstall() {
     if (update_busy_ || !update_found_) return;
     if (update_thread_.joinable()) update_thread_.join();
     SaveSettings(paths_.config_path);  // keep this session's changes
     update_busy_ = update_installing_ = true;
     update_work_ = std::make_shared<UpdateWork>();
-    update_thread_ = std::thread([work = update_work_, release = *update_found_, game = paths_.game_dir] {
-      work->error = update::StartRebuild(release, game, rex::filesystem::GetExecutableFolder(), &work->progress);
+    update_thread_ = std::thread([work = update_work_, release = *update_found_] {
+      work->error = update::Install(release, &work->progress);
       work->done = true;
     });
   }
@@ -1247,7 +1266,9 @@ class Launcher final : public rex::ui::ImGuiDialog {
     if (update_installing_) {
       update_installing_ = false;
       if (update_work_->error.empty()) {
-        if (cb_.quit) cb_.quit();  // the builder replaces the program files
+        // The new files are in place: start them and close this instance.
+        RelaunchSelf(L"");
+        if (cb_.quit) cb_.quit();
       } else {
         status_ = "Update failed: " + update_work_->error;
       }
@@ -1267,24 +1288,23 @@ class Launcher final : public rex::ui::ImGuiDialog {
     if (update_installing_) {
       const float f = update_work_->progress;
       ImGui::ProgressBar(f < 0 ? -1.0f * float(ImGui::GetTime()) : f, ImVec2(-FLT_MIN, 0),
-                         f < 0 ? "Unpacking..." : "Downloading the new builder...");
+                         f < 0 ? "Installing..." : "Downloading...");
       return;
     }
     ImGui::BeginDisabled(update_busy_ || installing_);
     if (AccentButton(("Update to " + update_found_->tag + "...").c_str(), ImVec2(-FLT_MIN, 0)))
-      ImGui::OpenPopup("Update the game?");
+      ImGui::OpenPopup("Update now?");
     ImGui::EndDisabled();
-    if (ImGui::BeginPopupModal("Update the game?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopupModal("Update now?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
       ImGui::PushTextWrapPos(460 * s_);
-      ImGui::TextUnformatted(("The launcher downloads the " + update_found_->tag +
-                              " builder from GitHub, unpacks it next to this one and closes. The builder then "
-                              "rebuilds the game in its own window from your installed game files (10 to 20 "
-                              "minutes) and starts it. Your settings and saves are kept.")
+      ImGui::TextUnformatted(("Update now downloads " + update_found_->tag +
+                              " from GitHub, installs it and restarts the launcher. Your game files, settings "
+                              "and saves are kept.")
                                  .c_str());
       ImGui::PopTextWrapPos();
       ImGui::Dummy(ImVec2(0, 4 * s_));
       if (AccentButton("Update", ImVec2(140 * s_, 0))) {
-        StartUpdateRebuild();
+        StartUpdateInstall();
         ImGui::CloseCurrentPopup();
       }
       ImGui::SameLine();
@@ -1339,7 +1359,7 @@ class Launcher final : public rex::ui::ImGuiDialog {
   std::thread update_thread_;
   std::shared_ptr<UpdateWork> update_work_;
   bool update_busy_ = false;        // a check or rebuild download is running
-  bool update_installing_ = false;  // ... and it is the rebuild download
+  bool update_installing_ = false;  // ... and it is the update download
   bool update_manual_ = false;
   std::optional<update::Release> update_found_;
   std::string update_status_;
@@ -1391,6 +1411,13 @@ void PreloadGpuPlugin() {
   const auto dir = rex::filesystem::GetExecutableFolder();
   for (const char* name : {"rexgpu-xenosrd.dll", "rexgpu-xenos.dll", "rexgpu-xenosd.dll"}) {
     if (std::filesystem::exists(dir / name) && LoadLibraryW((dir / name).c_str())) return;
+  }
+  REXLOG_WARN("OKX: GPU plugin not found for preload; graphics settings unavailable in launcher");
+#else
+  const auto dir = rex::filesystem::GetExecutableFolder();
+  for (const char* name : {"librexgpu-xenosrd.so", "librexgpu-xenos.so", "librexgpu-xenosd.so"}) {
+    for (const auto& path : {dir / name, dir / ".." / "lib" / name})
+      if (std::filesystem::exists(path) && dlopen(path.c_str(), RTLD_NOW | RTLD_GLOBAL)) return;
   }
   REXLOG_WARN("OKX: GPU plugin not found for preload; graphics settings unavailable in launcher");
 #endif

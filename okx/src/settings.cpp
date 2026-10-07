@@ -255,7 +255,12 @@ void ApplyRuntimeOverrides() {
   // it run at any rate; the title's delta-time keeps game speed correct.
   // Guest vsync only paces the emulated console (60 Hz vblank + coarse sleeps
   // in GPU waits). Frame pacing is done by okx_frame_rate instead.
-  for (const char* name : {"d3d12_submit_on_primary_buffer_end", "vsync"}) {
+#if defined(_WIN32)
+  const auto forced = {"d3d12_submit_on_primary_buffer_end", "vsync"};
+#else
+  const auto forced = {"vsync"};  // Vulkan backend: no D3D12 submit setting
+#endif
+  for (const char* name : forced) {
     if (!rex::cvar::SetFlagByName(name, "false"))
       REXLOG_WARN("OKX: could not set {} (cvar not registered)", name);
   }

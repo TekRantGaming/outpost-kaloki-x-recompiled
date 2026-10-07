@@ -126,13 +126,11 @@ there from an XBLA package); `run.bat` points at `okx\assets` instead.
   `setup.ps1` refuses another one before translating it; the launcher's Play card says "Different version of
   the game" (`GameVersionMatches`, cached per file time).
 - **Updates** (`src/updater.cpp`, `okx_check_updates`, About page): GET `/releases?per_page=20` (not
-  `/releases/latest`), newest non-draft release with a `-windows.zip` asset, compared with `OKX_VERSION` (CMake
-  `project(VERSION)`). Releases are builders, so "Update" downloads the zip (WinHTTP), unpacks it with Windows'
-  tar next to the old builder (exe dir's parent, or its parent when that is a builder folder), starts
-  `Build-OutpostKalokiX.ps1 -GameDir <game> -OutDir <exe dir> -Yes -NoShortcut` in its own console and quits.
-  The builder reuses the installed game files, waits for the old exe to close, replaces exe/dlls and starts
-  the game. Tested: check against the live releases (`OKX_UPDATE_TEST_VERSION=0.0.1`), download/unpack/command
-  line (dry run), and a full `-GameDir` build into a copied install (settings kept, game runs).
+  `/releases/latest`), newest non-draft release with this platform's asset (`-windows-x64.zip` /
+  `-linux-x86_64.AppImage`), compared with `OKX_VERSION` (CMake `project(VERSION)`). Windows: download with
+  WinHTTP, unpack with Windows' tar, rename each running exe/dll/txt to `*.old`, copy the new ones in, relaunch;
+  `CleanUpPreviousUpdate()` deletes the `*.old` files at the next start. Linux: the running AppImage is
+  replaced (rename over it). Same scheme as Earthworm Jim HD.
 
 ## Achievement notifications (src/toast.cpp)
 - Game unlocks arrive as XGI message 0x000B0025 (XMsgStartIORequest; the title has no XamUserWriteAchievements
@@ -186,8 +184,22 @@ there from an XBLA package); `run.bat` points at `okx\assets` instead.
 - Play-test with a controller: camera inversion, remapping, keyboard mode, gameplay at 60+ FPS (check physics/
   animation timing in actual gameplay, not just the title screen), achievements, audio. (Saving and the
   Xbox Live menus were checked with scripted input on 2026-10-07.)
-- Linux AppImage (builder on Linux; WSL Ubuntu is installed on the dev PC).
 - Report the FPSCR bug and the submit-on-primary-buffer-end stall upstream.
+
+## Releases (from v1.1.0)
+- Like the other TekRant ports: a ready-to-run Windows zip and a Linux AppImage, no game files (players install
+  them from their own package in the launcher). v1.0.0 and v1.0.1 shipped a builder instead; that was a mistake.
+- Windows: `tools\package_windows.ps1 -Version vX` builds okx-release and writes
+  `dist\OutpostKalokiX-vX-windows-x64.zip` (OutpostKalokiX\: exe, rexruntime.dll, rexgpu-xenos.dll, README.txt,
+  licenses\).
+- Linux: `tools/build_appimage.sh vX` in WSL (Ubuntu 24.04, as root) builds on the Linux filesystem
+  (`~/okx-linux-build`, default.xex copied there for the codegen step only) and writes
+  `dist/OutpostKalokiX-vX-linux-x86_64.AppImage`. On Linux the float-trap guard is a SIGFPE handler, sound uses
+  SDL3, the file picker is zenity/kdialog, and an AppImage keeps game files, settings and logs beside itself.
+- The app icon (`docs/images/icon.png`, from `tools/make_icon.ps1`) is original art, not the game's.
+- Publish by hand after the VirusTotal check: `gh release create vX <zip> <AppImage> --title vX --notes-file
+  .github/release-notes.md`. There is no release workflow (the game code cannot be built on GitHub).
+- The builder (`Build Outpost Kaloki X.bat`) stays in the repo for building from source; it is not released.
 
 ## Antivirus false positive (v1.0.1)
 - The official ReXGlue v0.10.0 `rexruntime.dll` (`e359209f...`) is flagged by Defender (`Wacatac.B!ml`, rexglue/rexglue-sdk#485).

@@ -33,6 +33,7 @@
 #include "platform.h"
 #include "settings.h"
 #include "toast.h"
+#include "updater.h"
 
 class OutpostKalokiXApp : public rex::ReXApp {
  public:
@@ -48,10 +49,25 @@ class OutpostKalokiXApp : public rex::ReXApp {
   void OnConfigurePaths(rex::PathConfig& paths) override {
     // Register the GPU plugin's cvars before the config is read so the
     // launcher can edit and save them, and set the port's own defaults.
+    okx::update::CleanUpPreviousUpdate();  // *.old files from the last update
     okx::PreloadGpuPlugin();
     okx::ApplyPortDefaults();
-    if (paths.game_data_root.empty())
-      paths.game_data_root = rex::filesystem::GetExecutableFolder() / "game";
+    // An AppImage runs from a read-only mount, so keep the game files, the
+    // settings and the logs beside the .AppImage file instead.
+    std::filesystem::path base = rex::filesystem::GetExecutableFolder();
+    if (const char* appimage = std::getenv("APPIMAGE"); appimage && *appimage) {
+      const auto exe_dir = base;
+      base = std::filesystem::path(appimage).parent_path();
+      if (paths.config_path.empty() || paths.config_path.parent_path() == exe_dir)
+        paths.config_path = base / (paths.config_path.empty() ? std::filesystem::path("outpost_kaloki_x.toml")
+                                                              : paths.config_path.filename());
+      if (REXCVAR_GET(log_file).empty()) {
+        std::error_code ec;
+        std::filesystem::create_directories(base / "logs", ec);
+        okx::SetCvarDefault("log_file", (base / "logs" / "outpost_kaloki_x.log").string());
+      }
+    }
+    if (paths.game_data_root.empty()) paths.game_data_root = base / "game";
   }
 
   std::optional<rex::PathConfig> OnFinalizePaths(
@@ -103,6 +119,7 @@ class OutpostKalokiXApp : public rex::ReXApp {
   }
 
   void OnPostSetup() override {
+    okx::InstallFpeGuard();
     okx::ApplyRuntimeOverrides();
     {
       rex::system::X_VIDEO_MODE mode{};

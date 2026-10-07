@@ -18,6 +18,7 @@
 #include <winhttp.h>
 #endif
 
+#include <rex/filesystem.h>
 #include <rex/logging.h>
 
 #ifndef OKX_VERSION
@@ -34,8 +35,12 @@ namespace fs = std::filesystem;
 constexpr const char* kReleasesApi =
     "https://api.github.com/repos/TekRantGaming/outpost-kaloki-x-recompiled/releases?per_page=20";
 constexpr const char* kReleasePage = "https://github.com/TekRantGaming/outpost-kaloki-x-recompiled/releases/tag/";
-// The builder zip of a release: OutpostKalokiX-Builder-v1.1.0-windows.zip.
-constexpr const char* kZipSuffix = "-windows.zip";
+// The download this platform installs from a release.
+#if defined(_WIN32)
+constexpr const char* kAssetSuffix = "-windows-x64.zip";
+#else
+constexpr const char* kAssetSuffix = "-linux-x86_64.AppImage";
+#endif
 
 // GETs `url` (following redirects) into `out`. Returns "" on success.
 std::string HttpGet(const std::string& url, std::string& out, std::atomic<float>* progress = nullptr) {
@@ -176,7 +181,7 @@ std::optional<Release> CheckLatest(std::string* error) {
   }
   // Each release object holds "tag_name", "draft" and its "assets" (with
   // "browser_download_url"s) before the next release's "tag_name". Keep the
-  // newest published one that has a Windows builder zip.
+  // newest published one that has a download for this platform.
   std::optional<Release> best;
   size_t pos = 0;
   while (true) {
@@ -194,13 +199,13 @@ std::optional<Release> CheckLatest(std::string* error) {
       size_t url_at = 0;
       const std::string url = JsonString(object, "browser_download_url", a, &url_at);
       if (url.empty()) break;
-      if (url.ends_with(kZipSuffix)) {
-        r.zip = url;
+      if (url.ends_with(kAssetSuffix)) {
+        r.asset = url;
         break;
       }
       a = url_at + 1;
     }
-    if (r.zip.empty()) continue;
+    if (r.asset.empty()) continue;
     if (!best || ParseVersion(r.tag) > ParseVersion(best->tag)) best = r;
   }
   if (!best) {
@@ -212,69 +217,96 @@ std::optional<Release> CheckLatest(std::string* error) {
   return best;
 }
 
-std::string StartRebuild(const Release& release, const fs::path& game_dir, const fs::path& exe_dir,
-                         std::atomic<float>* progress) {
-#if defined(_WIN32)
+std::string Install(const Release& release, std::atomic<float>* progress) {
   std::error_code ec;
-  if (!fs::exists(game_dir / "default.xex", ec)) return "The game files are not installed.";
-
-  // The new builder goes where a player would unzip it: next to the builder
-  // this game was built with (exe_dir is <builder>\OutpostKalokiX by default),
-  // or next to the game folder otherwise.
-  fs::path parent = exe_dir.parent_path();
-  if (fs::exists(parent / "Build-OutpostKalokiX.ps1", ec)) parent = parent.parent_path();
-  const std::string zip_name = release.zip.substr(release.zip.find_last_of('/') + 1);
-  const fs::path builder = parent / fs::path(zip_name).stem();  // the zip's top folder
-  {
-    const fs::path probe = parent / "okx_update_write_test.tmp";
-    std::ofstream(probe).put('x');
-    if (!fs::exists(probe, ec)) return "Cannot write to " + parent.string() + ".";
-    fs::remove(probe, ec);
-  }
-
-  const fs::path work = fs::temp_directory_path(ec) / "outpost_kaloki_x_update";
-  fs::create_directories(work, ec);
-  const fs::path zip = work / zip_name;
   std::string data;
-  if (std::string err = HttpGet(release.zip, data, progress); !err.empty()) return err;
+  if (std::string err = HttpGet(release.asset, data, progress); !err.empty()) return err;
+  if (progress) *progress = -1.0f;
+#if defined(_WIN32)
+  const fs::path work = fs::temp_directory_path(ec) / "outpost_kaloki_x_update";
+  fs::remove_all(work, ec);
+  fs::create_directories(work / "files", ec);
+  const fs::path zip = work / "update.zip";
   {
     std::ofstream out(zip, std::ios::binary | std::ios::trunc);
     out.write(data.data(), std::streamsize(data.size()));
     if (!out) return "Cannot write " + zip.string() + ".";
   }
-  if (progress) *progress = -1.0f;
-
   wchar_t system_dir[MAX_PATH];
   GetSystemDirectoryW(system_dir, MAX_PATH);
   const fs::path tar = fs::path(system_dir) / "tar.exe";
   if (const int code = RunHidden(L"\"" + tar.wstring() + L"\" -xf \"" + zip.wstring() + L"\" -C \"" +
-                                 parent.wstring() + L"\"");
+                                 (work / "files").wstring() + L"\"");
       code != 0)
-    return "Could not unpack the new builder (tar exit code " + std::to_string(code) + ").";
-  fs::remove_all(work, ec);
-  const fs::path script = builder / "Build-OutpostKalokiX.ps1";
-  if (!fs::exists(script, ec)) return "The download does not contain the builder.";
+    return "Could not unpack the update (tar exit code " + std::to_string(code) + ").";
 
-  // Its own console window: it shows the build and asks nothing (-Yes), then
-  // starts the updated game. The launcher quits so the files can be replaced.
-  std::wstring cmd = L"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"" + script.wstring() +
-                     L"\" -GameDir \"" + game_dir.wstring() + L"\" -OutDir \"" + exe_dir.wstring() +
-                     L"\" -Yes -NoShortcut";
-  STARTUPINFOW si{sizeof(si)};
-  PROCESS_INFORMATION pi{};
-  if (!CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NEW_CONSOLE, nullptr,
-                      builder.wstring().c_str(), &si, &pi))
-    return "Could not start the builder.";
-  CloseHandle(pi.hThread);
-  CloseHandle(pi.hProcess);
-  REXLOG_INFO("OKX: started the {} builder in {}", release.tag, builder.string());
-  return "";
+  // The new program folder: wherever outpost_kaloki_x.exe is inside the zip.
+  fs::path from;
+  for (auto& e : fs::recursive_directory_iterator(work / "files", ec))
+    if (e.path().filename() == "outpost_kaloki_x.exe") {
+      from = e.path().parent_path();
+      break;
+    }
+  if (from.empty()) return "The update does not contain outpost_kaloki_x.exe.";
+
+  // Swap the files in. A running exe or loaded dll can be renamed but not
+  // overwritten, so move each old file aside to *.old first.
+  const fs::path to = rex::filesystem::GetExecutableFolder();
+  for (auto& e : fs::recursive_directory_iterator(from, ec)) {
+    if (!e.is_regular_file()) continue;
+    const auto ext = e.path().extension().string();
+    if (ext != ".exe" && ext != ".dll" && ext != ".txt") continue;
+    const fs::path target = to / fs::relative(e.path(), from, ec);
+    fs::create_directories(target.parent_path(), ec);
+    const fs::path old = target.string() + ".old";
+    fs::remove(old, ec);
+    if (fs::exists(target)) {
+      fs::rename(target, old, ec);
+      if (ec) return "Could not replace " + target.filename().string() + ": " + ec.message();
+    }
+    fs::copy_file(e.path(), target, fs::copy_options::overwrite_existing, ec);
+    if (ec) {
+      fs::rename(old, target, ec);  // put the old one back
+      return "Could not install " + target.filename().string() + ".";
+    }
+  }
+  fs::remove_all(work, ec);
 #else
-  (void)game_dir;
-  (void)exe_dir;
-  (void)progress;
-  return "Download the new version from " + release.page;
+  // The running AppImage stays mounted, so its file can be replaced (rename over it).
+  const char* appimage = std::getenv("APPIMAGE");
+  if (!appimage || !*appimage) return "Download the new version from " + release.page;
+  const fs::path target = appimage;
+  const fs::path fresh = target.string() + ".new";
+  {
+    std::ofstream out(fresh, std::ios::binary | std::ios::trunc);
+    out.write(data.data(), std::streamsize(data.size()));
+    if (!out) return "Cannot write " + fresh.string() + ".";
+  }
+  fs::permissions(fresh,
+                  fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read |
+                      fs::perms::others_exec,
+                  fs::perm_options::replace, ec);
+  fs::rename(fresh, target, ec);
+  if (ec) return "Could not replace " + target.filename().string() + ": " + ec.message();
 #endif
+  REXLOG_INFO("OKX: installed update {}", release.tag);
+  return "";
+}
+
+void CleanUpPreviousUpdate() {
+  std::error_code ec;
+  if (const char* appimage = std::getenv("APPIMAGE"); appimage && *appimage)
+    fs::remove(fs::path(appimage).string() + ".new", ec);  // an interrupted AppImage update
+  // The program folder and its licenses folder only (not the game files).
+  for (auto it = fs::recursive_directory_iterator(rex::filesystem::GetExecutableFolder(), ec);
+       !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    if (it->is_directory(ec)) {
+      if (it->path().filename() != "licenses") it.disable_recursion_pending();
+    } else if (it->path().extension() == ".old") {
+      fs::remove(it->path(), ec);
+      ec.clear();
+    }
+  }
 }
 
 }  // namespace okx::update
