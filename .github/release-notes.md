@@ -4,6 +4,7 @@ Play the Xbox 360 edition of Outpost Kaloki X natively on Windows, with a launch
 
 ### New in v1.0.1
 - **No more antivirus warnings.** Some antivirus programs, including Microsoft Defender, wrongly flagged `rexruntime.dll` from the ReXGlue SDK as a threat. The builder now uses `rexruntime.dll` rebuilt from the same ReXGlue v0.10.0 source, which they don't flag (antivirus false positive, rexglue/rexglue-sdk#485). Nothing else changed: the game plays exactly like v1.0.0. If you built v1.0.0, run the new builder again.
+- [VirusTotal scan of this zip](https://www.virustotal.com/gui/file/f5e027c7906f5945fd5cc5aefa81f2e83df24ced65d8f73d593e9cfa9376831f): clean.
 
 ### How to install
 1. Download the **OutpostKalokiX-Builder** zip below and unzip it.
