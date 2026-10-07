@@ -17,7 +17,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Skip if already released
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A release published by hand (e.g. with a zip already checked on VirusTotal)
+          # must not be replaced.
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; nothing to do."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          fi
+
       - name: Package the builder
+        if: env.SKIP != '1'
         run: |
           name="OutpostKalokiX-Builder-${GITHUB_REF_NAME}-windows"
           git archive --format=zip --prefix="${name}/" -o "${name}.zip" HEAD
@@ -25,6 +37,7 @@ jobs:
           unzip -l "${name}.zip" | tail -1
 
       - name: Publish the release
+        if: env.SKIP != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
