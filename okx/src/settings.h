@@ -16,6 +16,7 @@
 
 REXCVAR_DECLARE(bool, okx_launcher);
 REXCVAR_DECLARE(bool, okx_skip_launcher);
+REXCVAR_DECLARE(bool, okx_check_updates);
 REXCVAR_DECLARE(int32_t, okx_frame_rate);
 REXCVAR_DECLARE(std::string, okx_render_quality);
 REXCVAR_DECLARE(bool, okx_show_fps);
@@ -80,6 +81,12 @@ bool SaveSettings(const std::filesystem::path& path);
 
 // Changes a cvar's default; values from the config file or command line still win.
 void SetCvarDefault(std::string_view name, std::string_view value);
+
+// Cvars the port sets at every start (never saved or reset by the launcher).
+bool IsPinnedCvar(std::string_view name);
+
+// Keeps the guest video mode at 1280x720 whatever the window size.
+void PinGuestVideoMode();
 
 // Port defaults that differ from ReXGlue's (call before the config is loaded).
 void ApplyPortDefaults();

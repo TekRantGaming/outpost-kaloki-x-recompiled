@@ -3,7 +3,7 @@
 # SDK boilerplate lives in generated/rexglue.cmake.
 
 cmake_minimum_required(VERSION 3.25)
-project(outpost_kaloki_x LANGUAGES CXX)
+project(outpost_kaloki_x VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -24,6 +24,7 @@ set(OUTPOSTKALOKIX_SOURCES
     src/art.cpp
     src/overlay.cpp
     src/toast.cpp
+    src/updater.cpp
 )
 
 if(WIN32)
@@ -33,3 +34,9 @@ else()
 endif()
 
 rexglue_setup_target(outpost_kaloki_x GPU_PLUGINS xenos)
+
+# The port's version (shown in the launcher, compared with GitHub releases).
+target_compile_definitions(outpost_kaloki_x PRIVATE OKX_VERSION="${PROJECT_VERSION}")
+if(WIN32)
+    target_link_libraries(outpost_kaloki_x PRIVATE winhttp)
+endif()

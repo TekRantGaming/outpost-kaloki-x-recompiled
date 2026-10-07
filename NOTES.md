@@ -111,7 +111,28 @@ there from an XBLA package); `run.bat` points at `okx\assets` instead.
   accepts `bilinear` (CAS/FSR hidden).
 - Installer: C++ STFS extractor (`src/stfs.cpp`, port of tools/StfsExtract.cs), checks title ID 584107DB.
 - Port defaults (`ApplyPortDefaults`, changed *defaults* so config/CLI still win): `license_mask=1`,
-  `fullscreen=false`.
+  `fullscreen=false`, `async_shader_compilation=false` (the D3D12 backend skips draws whose shader is still
+  compiling, so things vanish for a moment on first sight; waiting pauses once, shaders are cached). Launcher:
+  Graphics > Shader preparing. `gpu_allow_invalid_fetch_constants` (Earthworm Jim HD needs it) stays off: no
+  "invalid" fetch constant warnings in any OKX log, including 2.5 min of Chapter 1.
+- **Letterbox fix** (`PinGuestVideoMode`): ReXGlue's `VdQueryVideoMode` follows `window_width/height` when
+  `video_mode_width/height` are unset, so an 800x600 window told the game the TV was 800x600 and Letterbox 16:9
+  could not keep the shape (startup log: `OKX: guest video mode 800x600`). The guest mode is pinned to 1280x720
+  (registered default cleared so ReXGlue's "non-default" check passes; only those two cvars). Pinned cvars
+  (`IsPinnedCvar`: video mode, vsync, d3d12_submit_on_primary_buffer_end) are never saved or reset.
+- **Settings file**: `SaveSettings` skips command-line overrides but keeps the file's own line for them, so a
+  one-off `--okx_frame_rate=30` no longer erases the saved choice.
+- **Version check**: the port is made for one default.xex (3,252,224 bytes, CRC32 `CCB0ACE9`, version 0.0.1.1).
+  `setup.ps1` refuses another one before translating it; the launcher's Play card says "Different version of
+  the game" (`GameVersionMatches`, cached per file time).
+- **Updates** (`src/updater.cpp`, `okx_check_updates`, About page): GET `/releases?per_page=20` (not
+  `/releases/latest`), newest non-draft release with a `-windows.zip` asset, compared with `OKX_VERSION` (CMake
+  `project(VERSION)`). Releases are builders, so "Update" downloads the zip (WinHTTP), unpacks it with Windows'
+  tar next to the old builder (exe dir's parent, or its parent when that is a builder folder), starts
+  `Build-OutpostKalokiX.ps1 -GameDir <game> -OutDir <exe dir> -Yes -NoShortcut` in its own console and quits.
+  The builder reuses the installed game files, waits for the old exe to close, replaces exe/dlls and starts
+  the game. Tested: check against the live releases (`OKX_UPDATE_TEST_VERSION=0.0.1`), download/unpack/command
+  line (dry run), and a full `-GameDir` build into a copied install (settings kept, game runs).
 
 ## Achievement notifications (src/toast.cpp)
 - Game unlocks arrive as XGI message 0x000B0025 (XMsgStartIORequest; the title has no XamUserWriteAchievements
@@ -125,17 +146,47 @@ there from an XBLA package); `run.bat` points at `okx\assets` instead.
   `launcher/port_achievements.txt`, kept out of ReXGlue's AchievementManager so the game never sees an unknown ID.
 - Launcher Achievements page: notification settings, Test notification button, PC-port section.
 
+## Xbox Live and saving (checked 2026-10-07)
+- **Leaderboards need no fix** (unlike Earthworm Jim HD): the menus check the online-users mask first and show
+  the game's own "Not Online: You need to be signed in to Xbox Live to view leaderboards" box; A/B close it.
+  The stats code (`sub_820E8238` -> XDK wrappers `sub_820E8AC8` by rank / `sub_820E8B28` by XUID, XEnumerate
+  `sub_820E8E70`) is never reached because ReXGlue never reports a Live sign-in. The title notice ("signed in
+  to a profile but not to Xbox Live", A continue) appears after Start on the title screen.
+- **Saving works**: Save Game writes a content package (`<user data>/<XUID>/584107DB/00000001/
+  OutpostKalokiSaveBlock.sav/`, ~265 KB + thumbnail) after XamShowDeviceSelectorUI; Load Saved enumerates it
+  and lists "Chapter 1: Testing Your Wings, Time Remaining 09:54"; loading restores the chapter and timer.
+- Options live in the profile's title-specific settings 0x63E83FFF/FE/FD (1000 + 756 + 0 bytes; the parser
+  `sub_820877E8` needs exactly 1756 in total, version halfword 8). A never-written setting comes back "unset"
+  and the game rebuilds defaults itself, so Earthworm Jim HD's profile seeding / XUID fill is not needed.
+
 ## Dev tools
+- `OKX_DEV_INPUT="10:start;13:a;18:dpad_down"`: presses pad buttons (okx_map_* ids) for 150 ms at those many
+  seconds after the first pad read, acting as a connected pad (`src/input_remap.cpp`). Logged as `OKX: dev input`.
+- `OKX_DEV_CAPTURE="20;26.5"`: saves the game's own output (not the desktop) at those many seconds after the
+  first frame to `<user data>/dev_capture/<s>.bmp`. With the two above, a test run with
+  `--user_data_root=<scratch>` can reach any menu and be checked without touching the player's desktop or saves.
+  Main menu: Start (title), A (Live notice), then Play / Scenarios / Load Saved / Leaderboards / Achievements /
+  Help and Options. Pause menu: Start in game (Resume, Help and Options, Leaderboards, Achievements, Save Game,
+  Retry Scenario, Main Menu).
+- `OKX_UPDATE_TEST_VERSION=0.0.1`: makes the build look old so the update check finds the live release.
 - `OKX_PROFILE=<s>` → profile.txt per-thread hotspots (symbolize with VS `llvm-symbolizer --relative-address`).
 - `OKX_DUMP_IMAGE=<file>` → decrypted guest image. `tools/snap_window.ps1`, `tools/click_window.ps1`
   (screenshot / click the game window for automated UI checks).
+
+## Build
+- `okx\build.bat` puts the Visual Studio Installer folder on PATH before vcvars (vcvars runs vswhere by name)
+  and uses Visual Studio's own CMake and clang, not other installs earlier on PATH. A CMake 4.x configure with
+  a broken environment once left empty compiler features in the build folder ("No known features for CXX
+  compiler Clang"); delete `CMakeCache.txt` and `CMakeFiles/<version>` in that folder to recover.
 
 ## Known log noise (harmless so far)
 - `NtCreateFile 'saved'` fails at boot (before any save content exists); `viewer.ini` / `gametest.init` are dev files.
 
 ## Next
 - Play-test with a controller: camera inversion, remapping, keyboard mode, gameplay at 60+ FPS (check physics/
-  animation timing in actual gameplay, not just the title screen), saving, achievements, audio.
+  animation timing in actual gameplay, not just the title screen), achievements, audio. (Saving and the
+  Xbox Live menus were checked with scripted input on 2026-10-07.)
+- Linux AppImage (builder on Linux; WSL Ubuntu is installed on the dev PC).
 - Report the FPSCR bug and the submit-on-primary-buffer-end stall upstream.
 
 ## Antivirus false positive (v1.0.1)

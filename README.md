@@ -92,7 +92,7 @@ Everything is set up before the game starts. The launcher uses art from your own
 
 ### Play
 - **Install the game** straight from your Xbox Live Arcade package, with a progress bar
-- Checks the file really is Outpost Kaloki X
+- Checks the file really is Outpost Kaloki X, and the right version of it
 - Play the **full game** or the **trial**
 - Turn the launcher off and **hold Shift** at start to bring it back
 
@@ -106,7 +106,7 @@ Everything is set up before the game starts. The launcher uses art from your own
 - **Window size** that fits your screen
 - **Choose the monitor**
 - **VSync** on or off (off works great with G-Sync and FreeSync)
-- **Keep 16:9** with borders, or **stretch** to fill
+- **Keep 16:9** with borders (at any window size), or **stretch** to fill
 
 </td>
 <td width="55%"><img src="docs/images/launcher-display.jpg" alt="Display page"></td>
@@ -121,6 +121,7 @@ Everything is set up before the game starts. The launcher uses art from your own
 - **FXAA** and **FXAA Extreme**
 - Real **2x MSAA**
 - **Texture filtering** up to 16x
+- **Shader preparing**: a short pause the first time an effect appears, or no pause with effects briefly missing
 
 </td>
 </tr>
@@ -168,6 +169,7 @@ Everything is set up before the game starts. The launcher uses art from your own
 <td valign="middle">
 
 ### About
+- **Updates**: the launcher can check GitHub for a new version and update with one click. It downloads the new builder and rebuilds the game from your installed files, keeping your settings and saves
 - Open your **save folder**, **game folder** or **settings file** in one click
 - **Reset** every setting
 - Refresh the launcher's title screen art

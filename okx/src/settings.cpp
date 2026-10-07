@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cmath>
 #include <fstream>
+#include <map>
 
 #include <rex/logging.h>
 #include <rex/string.h>
@@ -12,6 +13,8 @@ REXCVAR_DEFINE_BOOL(okx_launcher, true, "OKX",
                     "Show the launcher before starting the game (hold Shift at start to force it)");
 REXCVAR_DEFINE_BOOL(okx_skip_launcher, false, "OKX",
                     "Internal: skip the launcher once (used when it relaunches the game)");
+REXCVAR_DEFINE_BOOL(okx_check_updates, true, "OKX",
+                    "Ask GitHub for a newer version when the launcher opens");
 REXCVAR_DEFINE_INT32(okx_frame_rate, 60, "OKX/Video",
                      "Frame-rate cap: 30, 60, 120, 144, 165, 240, or 0 for unlimited");
 REXCVAR_DEFINE_STRING(okx_render_quality, "native", "OKX/Video",
@@ -153,11 +156,28 @@ void ApplyRenderPreset(int output_height) {
 bool SaveSettings(const std::filesystem::path& path) {
   // Like rex::cvar::SaveConfig, but values that came from the command line or
   // environment (e.g. --game_data_root, --log_file) are one-off overrides and
-  // are not written back.
+  // are not written back. The file's own line for such a setting is kept, so a
+  // one-off --okx_frame_rate=30 does not erase the player's saved choice.
+  std::map<std::string, std::string> previous;  // name -> the file's line
+  {
+    std::ifstream in(path);
+    std::string line;
+    while (std::getline(in, line)) {
+      const auto eq = line.find('=');
+      if (line.empty() || line[0] == '#' || eq == std::string::npos) continue;
+      std::string name = line.substr(0, eq);
+      while (!name.empty() && std::isspace(static_cast<unsigned char>(name.back()))) name.pop_back();
+      previous[name] = line;
+    }
+  }
   std::string out = "# Outpost Kaloki X settings (edited by the launcher)\n";
   for (const auto& e : rex::cvar::GetRegistry()) {
     if (e.type == rex::cvar::FlagType::Command || e.is_debug_only) continue;
-    if (e.source == rex::cvar::Source::kCommandLine || e.source == rex::cvar::Source::kEnvironment) continue;
+    if (IsPinnedCvar(e.name)) continue;  // set by the port at every start
+    if (e.source == rex::cvar::Source::kCommandLine || e.source == rex::cvar::Source::kEnvironment) {
+      if (auto it = previous.find(e.name); it != previous.end()) out += it->second + '\n';
+      continue;
+    }
     const std::string value = e.getter();
     if (value == e.default_value) continue;
     out += e.name + " = ";
@@ -191,12 +211,42 @@ void SetCvarDefault(std::string_view name, std::string_view value) {
   }
 }
 
+bool IsPinnedCvar(std::string_view name) {
+  // The guest video mode (PinGuestVideoMode), and what ApplyRuntimeOverrides
+  // forces: the port sets them at every start, so they are never saved or reset.
+  return name == "video_mode_width" || name == "video_mode_height" || name == "vsync" ||
+         name == "d3d12_submit_on_primary_buffer_end";
+}
+
+void PinGuestVideoMode() {
+  // ReXGlue derives the console's video mode from window_width/height whenever
+  // those are set and video_mode_width/height are not (VdQueryVideoMode). A
+  // window of, say, 800x600 then tells the game the TV is 4:3: the game still
+  // draws 16:9, but the presenter treats the picture as 4:3 and stretches it,
+  // so "Letterbox 16:9" did nothing. Keep the console on 1280x720. ReXGlue's
+  // check is "value != registered default", so the registered default is
+  // cleared rather than the value changed. Only these two cvars are touched.
+  for (auto& e : rex::cvar::GetRegistry()) {
+    if (e.name != "video_mode_width" && e.name != "video_mode_height") continue;
+    if (e.source == rex::cvar::Source::kDefault) e.setter(e.name == "video_mode_width" ? "1280" : "720");
+    e.default_value.clear();
+  }
+}
+
 void ApplyPortDefaults() {
+  PinGuestVideoMode();
   // XBLA titles ship as trials that unlock via XamContentGetLicenseMask; the
   // port defaults to the full (purchased) license, like Xenia's license_mask = 1.
   SetCvarDefault("license_mask", "1");
   // Windowed by default so the launcher isn't a giant fullscreen dialog.
   SetCvarDefault("fullscreen", "false");
+  // While a shader compiles in the background, the D3D12 backend skips every
+  // draw that needs it, so things can be missing for a moment on first sight.
+  // Waiting costs a short pause the first time only, since shaders are saved
+  // for later runs. A GPU-plugin cvar: PreloadGpuPlugin registers it first.
+  // (gpu_allow_invalid_fetch_constants, which Earthworm Jim HD needs, stays off:
+  // this game logs no invalid fetch constants.)
+  SetCvarDefault("async_shader_compilation", "false");
 }
 
 void ApplyRuntimeOverrides() {

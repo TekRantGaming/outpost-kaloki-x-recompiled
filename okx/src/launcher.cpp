@@ -4,8 +4,10 @@
 #include <atomic>
 #include <cmath>
 #include <cstdlib>
+#include <fstream>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -38,6 +40,7 @@
 #include "settings.h"
 #include "stfs.h"
 #include "toast.h"
+#include "updater.h"
 
 namespace okx {
 namespace {
@@ -234,6 +237,7 @@ class Launcher final : public rex::ui::ImGuiDialog {
     files_ok_ = GameFilesPresent(paths_.game_dir);
     LoadArt();
     toast_ = std::make_unique<AchievementToast>(drawer, immediate_, paths_.game_dir, paths_.user_dir);
+    if (GetBool("okx_check_updates")) StartUpdateCheck(false);
   }
 
   ~Launcher() override {
@@ -242,10 +246,13 @@ class Launcher final : public rex::ui::ImGuiDialog {
       progress_.cancel = true;
       install_thread_.join();
     }
+    // A web request cannot be interrupted; its state outlives the launcher.
+    if (update_thread_.joinable()) update_thread_.detach();
   }
 
  protected:
   void OnDraw(ImGuiIO& io) override {
+    PollUpdates();
     s_ = ImGui::GetFontSize() / 18.0f;
     ApplyTheme(s_);
     const ImGuiViewport* vp = ImGui::GetMainViewport();
@@ -569,7 +576,8 @@ class Launcher final : public rex::ui::ImGuiDialog {
 
   // --------------------------------------------------------------- Play ---
   void StatusCard() {
-    const bool ok = files_ok_ && !installing_;
+    const bool wrong_version = files_ok_ && !installing_ && !GameVersionMatches(paths_.game_dir);
+    const bool ok = files_ok_ && !installing_ && !wrong_version;
     const ImVec2 p = ImGui::GetCursorScreenPos();
     const float w = ImGui::GetContentRegionAvail().x, h = 76 * s_;
     ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -579,12 +587,17 @@ class Launcher final : public rex::ui::ImGuiDialog {
     ImGui::SetCursorScreenPos(ImVec2(p.x + 64 * s_, p.y + 14 * s_));
     ImGui::BeginGroup();
     ImGui::PushFont(GetUiFonts().semibold, 0.0f);
-    ImGui::TextUnformatted(installing_ ? "Installing..." : ok ? "Ready to play" : "Game files needed");
+    ImGui::TextUnformatted(installing_     ? "Installing..."
+                           : ok            ? "Ready to play"
+                           : wrong_version ? "Different version of the game"
+                                           : "Game files needed");
     ImGui::PopFont();
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.85f, 0.9f, 0.95f, 1));
     if (installing_) {
       const double total = std::max<double>(1.0, double(progress_.bytes_total.load()));
       ImGui::ProgressBar(float(progress_.bytes_done.load() / total), ImVec2(w - 100 * s_, 6 * s_), "");
+    } else if (wrong_version) {
+      ImGui::TextUnformatted("This port needs the XBLA release, version 0.0.1.1 (default.xex CRC32 CCB0ACE9).");
     } else {
       ImGui::TextUnformatted(ok ? paths_.game_dir.string().c_str()
                                 : "Install from your Outpost Kaloki X XBLA package below.");
@@ -603,6 +616,12 @@ class Launcher final : public rex::ui::ImGuiDialog {
       ImGui::PopStyleColor();
     }
     if (!BeginRows("##play")) return;
+    if (update_found_) {
+      Row("Update available",
+          "A new version of the port. Updating downloads its builder from GitHub and rebuilds the game on this PC "
+          "from your installed game files, in its own window (10 to 20 minutes). Settings and saves are kept.");
+      DrawUpdateButton();
+    }
     Row("XBLA package",
         "Your own Outpost Kaloki X package from an Xbox 360 or an emulator's content folder (the file with no "
         "extension). Its files are extracted next to the game.");
@@ -782,6 +801,11 @@ class Launcher final : public rex::ui::ImGuiDialog {
     Row("Texture filtering", "Keeps the station floor and distant textures sharp at steep angles.");
     ChoiceCvar("anisotropic_override",
                {{"Game", "-1"}, {"Off", "0"}, {"2\xC3\x97", "2"}, {"4\xC3\x97", "3"}, {"8\xC3\x97", "4"}, {"16\xC3\x97", "5"}});
+    Row("Shader preparing",
+        "Each new effect is prepared the first time it appears, then saved for next time. Wait draws it "
+        "correctly with a short pause, the first time only. Background avoids the pause, but effects can "
+        "briefly be missing.");
+    ToggleCvar("async_shader_compilation", "Wait", "Background");
     EndRows();
   }
 
@@ -1058,6 +1082,20 @@ class Launcher final : public rex::ui::ImGuiDialog {
     ImGui::PopStyleColor();
     ImGui::Dummy(ImVec2(0, 4 * s_));
     if (!BeginRows("##about")) return;
+    Row("Port version", "The version of this PC port.");
+    ImGui::TextUnformatted(update::CurrentVersion());
+    Row("Updates", "Ask GitHub for a newer version when the launcher opens. Nothing else is sent or received.");
+    ToggleCvar("okx_check_updates", "Off", "At startup");
+    ImGui::BeginDisabled(update_busy_);
+    if (ImGui::Button(update_busy_ && !update_installing_ ? "Checking..." : "Check now", ImVec2(-FLT_MIN, 0)))
+      StartUpdateCheck(true);
+    ImGui::EndDisabled();
+    if (!update_status_.empty()) {
+      ImGui::PushStyleColor(ImGuiCol_Text, kDim);
+      ImGui::TextWrapped("%s", update_status_.c_str());
+      ImGui::PopStyleColor();
+    }
+    if (update_found_) DrawUpdateButton();
     Row("Save data", "Your saves, achievements and caches.");
     if (ImGui::Button("Open save folder", ImVec2(-FLT_MIN, 0))) OpenInExplorer(paths_.user_dir);
     Row("Game files", "Where the game is installed.");
@@ -1097,7 +1135,7 @@ class Launcher final : public rex::ui::ImGuiDialog {
 
   void ResetAllSettings() {
     for (auto& e : rex::cvar::GetRegistry()) {
-      if (e.type == rex::cvar::FlagType::Command) continue;
+      if (e.type == rex::cvar::FlagType::Command || IsPinnedCvar(e.name)) continue;
       if (e.source == rex::cvar::Source::kCommandLine || e.source == rex::cvar::Source::kEnvironment) continue;
       rex::cvar::ResetToDefault(e.name);
     }
@@ -1129,7 +1167,7 @@ class Launcher final : public rex::ui::ImGuiDialog {
   }
 
   void DrawPlayButton(ImVec2 size) {
-    const bool can_play = files_ok_ && !installing_;
+    const bool can_play = files_ok_ && !installing_ && !update_installing_;
     const ImVec2 p = ImGui::GetCursorScreenPos();
     ImGui::BeginDisabled(!can_play);
     const bool clicked = ImGui::InvisibleButton("##play", size);
@@ -1158,7 +1196,7 @@ class Launcher final : public rex::ui::ImGuiDialog {
     if (!capturing_.empty() || ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId) || ImGui::GetIO().WantTextInput)
       return;
     if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false)) {
-      if (files_ok_ && !installing_) Play();
+      if (files_ok_ && !installing_ && !update_installing_) Play();
     } else if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
       if (cb_.quit) cb_.quit();
     } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
@@ -1167,6 +1205,93 @@ class Launcher final : public rex::ui::ImGuiDialog {
   }
 
   void Save() { status_ = SaveSettings(paths_.config_path) ? "Settings saved." : "Could not save settings."; }
+
+  // ------------------------------------------------------------ updates ---
+  // The worker writes only into this shared state; the launcher reads it once
+  // `done` is set (and may close first: the state outlives it).
+  struct UpdateWork {
+    std::atomic<bool> done{false};
+    std::atomic<float> progress{-1.0f};
+    std::optional<update::Release> found;
+    std::string error;
+  };
+
+  void StartUpdateCheck(bool manual) {
+    if (update_busy_) return;
+    if (update_thread_.joinable()) update_thread_.join();
+    update_busy_ = true;
+    update_manual_ = manual;
+    update_work_ = std::make_shared<UpdateWork>();
+    update_thread_ = std::thread([work = update_work_] {
+      work->found = update::CheckLatest(&work->error);
+      work->done = true;
+    });
+  }
+
+  void StartUpdateRebuild() {
+    if (update_busy_ || !update_found_) return;
+    if (update_thread_.joinable()) update_thread_.join();
+    SaveSettings(paths_.config_path);  // keep this session's changes
+    update_busy_ = update_installing_ = true;
+    update_work_ = std::make_shared<UpdateWork>();
+    update_thread_ = std::thread([work = update_work_, release = *update_found_, game = paths_.game_dir] {
+      work->error = update::StartRebuild(release, game, rex::filesystem::GetExecutableFolder(), &work->progress);
+      work->done = true;
+    });
+  }
+
+  void PollUpdates() {
+    if (!update_busy_ || !update_work_->done) return;
+    update_thread_.join();
+    update_busy_ = false;
+    if (update_installing_) {
+      update_installing_ = false;
+      if (update_work_->error.empty()) {
+        if (cb_.quit) cb_.quit();  // the builder replaces the program files
+      } else {
+        status_ = "Update failed: " + update_work_->error;
+      }
+      return;
+    }
+    update_found_ = update_work_->found;
+    if (update_found_)
+      update_status_ = "Version " + update_found_->tag + " is available (this is " + update::CurrentVersion() + ").";
+    else if (update_work_->error.empty())
+      update_status_ = "You have the latest version.";
+    else
+      update_status_ = "Could not check: " + update_work_->error;
+    if (update_manual_ || update_found_) status_ = update_status_;
+  }
+
+  void DrawUpdateButton() {
+    if (update_installing_) {
+      const float f = update_work_->progress;
+      ImGui::ProgressBar(f < 0 ? -1.0f * float(ImGui::GetTime()) : f, ImVec2(-FLT_MIN, 0),
+                         f < 0 ? "Unpacking..." : "Downloading the new builder...");
+      return;
+    }
+    ImGui::BeginDisabled(update_busy_ || installing_);
+    if (AccentButton(("Update to " + update_found_->tag + "...").c_str(), ImVec2(-FLT_MIN, 0)))
+      ImGui::OpenPopup("Update the game?");
+    ImGui::EndDisabled();
+    if (ImGui::BeginPopupModal("Update the game?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::PushTextWrapPos(460 * s_);
+      ImGui::TextUnformatted(("The launcher downloads the " + update_found_->tag +
+                              " builder from GitHub, unpacks it next to this one and closes. The builder then "
+                              "rebuilds the game in its own window from your installed game files (10 to 20 "
+                              "minutes) and starts it. Your settings and saves are kept.")
+                                 .c_str());
+      ImGui::PopTextWrapPos();
+      ImGui::Dummy(ImVec2(0, 4 * s_));
+      if (AccentButton("Update", ImVec2(140 * s_, 0))) {
+        StartUpdateRebuild();
+        ImGui::CloseCurrentPopup();
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Later", ImVec2(140 * s_, 0))) ImGui::CloseCurrentPopup();
+      ImGui::EndPopup();
+    }
+  }
 
   void Play() {
     if (played_) return;
@@ -1210,6 +1335,14 @@ class Launcher final : public rex::ui::ImGuiDialog {
   bool installing_ = false;
   std::string install_result_;
   std::string install_message_;
+
+  std::thread update_thread_;
+  std::shared_ptr<UpdateWork> update_work_;
+  bool update_busy_ = false;        // a check or rebuild download is running
+  bool update_installing_ = false;  // ... and it is the rebuild download
+  bool update_manual_ = false;
+  std::optional<update::Release> update_found_;
+  std::string update_status_;
 };
 
 }  // namespace
@@ -1218,6 +1351,39 @@ bool GameFilesPresent(const std::filesystem::path& game_dir) {
   std::error_code ec;
   return !game_dir.empty() && std::filesystem::exists(game_dir / "default.xex", ec) &&
          std::filesystem::exists(game_dir / "fsxb2" / "blockfiles" / "Full_Common.blk.bz2", ec);
+}
+
+bool GameVersionMatches(const std::filesystem::path& game_dir) {
+  // The port is built for one exact default.xex (addresses, hooks and hand-made
+  // analysis fixes all depend on it). Another revision would crash in
+  // confusing ways, so check it.
+  static std::filesystem::path checked;
+  static std::filesystem::file_time_type checked_time{};
+  static bool result = false;
+  const auto xex = game_dir / "default.xex";
+  std::error_code ec;
+  const auto time = std::filesystem::last_write_time(xex, ec);
+  if (checked == game_dir && checked_time == time) return result;  // same file as last time
+  checked = game_dir;
+  checked_time = time;
+  result = false;
+  if (ec || std::filesystem::file_size(xex, ec) != kXexSize || ec) return result;
+  std::ifstream in(xex, std::ios::binary);
+  uint32_t table[256];
+  for (uint32_t i = 0; i < 256; ++i) {
+    uint32_t c = i;
+    for (int k = 0; k < 8; ++k) c = c & 1 ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+    table[i] = c;
+  }
+  uint32_t crc = 0xFFFFFFFFu;
+  std::vector<char> chunk(1 << 20);
+  while (in) {
+    in.read(chunk.data(), std::streamsize(chunk.size()));
+    for (std::streamsize i = 0; i < in.gcount(); ++i) crc = table[(crc ^ uint8_t(chunk[size_t(i)])) & 0xFF] ^ (crc >> 8);
+  }
+  result = (crc ^ 0xFFFFFFFFu) == kXexCrc32;
+  if (!result) REXLOG_WARN("OKX: default.xex is not the supported version (CRC32 {:08X})", crc ^ 0xFFFFFFFFu);
+  return result;
 }
 
 void PreloadGpuPlugin() {

@@ -8,12 +8,14 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <string>
 
 #include <imgui.h>
 
 #include <rex/audio/sdl/sdl_audio_system.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
+#include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
 #include <rex/rex_app.h>
 #include <rex/runtime.h>
@@ -102,6 +104,12 @@ class OutpostKalokiXApp : public rex::ReXApp {
 
   void OnPostSetup() override {
     okx::ApplyRuntimeOverrides();
+    {
+      rex::system::X_VIDEO_MODE mode{};
+      rex::kernel::xboxkrnl::VdQueryVideoMode(&mode);
+      REXLOG_INFO("OKX: guest video mode {}x{}, widescreen {}", uint32_t(mode.display_width),
+                  uint32_t(mode.display_height), uint32_t(mode.is_widescreen));
+    }
 
     // Give the launcher the achievement names (read from the game by the runtime).
     if (!user_data_root_.empty())
@@ -109,6 +117,7 @@ class OutpostKalokiXApp : public rex::ReXApp {
                                       okx::art::AchievementCachePath(user_data_root_));
     ScheduleTitleCapture();
     ScheduleWelcomeAchievement();
+    ScheduleDevCaptures();
 
     // Debug aid: set OKX_DUMP_IMAGE=<file> to write the decrypted guest image
     // (0x82000000-0x823A0000) for offline analysis.
@@ -155,6 +164,34 @@ class OutpostKalokiXApp : public rex::ReXApp {
           REXLOG_INFO("OKX: saved launcher art {}x{}", image.width, image.height);
       });
     });
+  }
+
+  // Developer test aid: OKX_DEV_CAPTURE="18;25.5" saves the game's own output
+  // (not the desktop) at those many seconds after the first frame, as
+  // <user data>/dev_capture/<seconds>.bmp. Ignored unless the variable is set.
+  void ScheduleDevCaptures() {
+    const char* env = std::getenv("OKX_DEV_CAPTURE");
+    if (!env || !*env || user_data_root_.empty()) return;
+    std::string list(env);
+    for (size_t pos = 0; pos < list.size();) {
+      size_t end = list.find(';', pos);
+      if (end == std::string::npos) end = list.size();
+      const std::string item = list.substr(pos, end - pos);
+      pos = end + 1;
+      if (item.empty()) continue;
+      const auto path = user_data_root_ / "dev_capture" / (item + ".bmp");
+      okx::RunAfterFirstFrame(std::atof(item.c_str()), [this, path] {
+        app_context().CallInUIThread([this, path] {
+          rex::ui::RawImage image;
+          auto* gfx = runtime() ? runtime()->graphics_system() : nullptr;
+          auto* presenter = gfx ? gfx->presenter() : nullptr;
+          std::error_code ec;
+          std::filesystem::create_directories(path.parent_path(), ec);
+          if (presenter && presenter->CaptureGuestOutput(image) && okx::art::SaveTitleCapture(image, path))
+            REXLOG_INFO("OKX: dev capture {}", path.filename().string());
+        });
+      });
+    }
   }
 
   // The port's own "Welcome" achievement: unlocks a few seconds into the first

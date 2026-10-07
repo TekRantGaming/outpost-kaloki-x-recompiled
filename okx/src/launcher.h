@@ -35,6 +35,14 @@ struct LauncherPaths {
 // True when the game files needed to boot exist under `game_dir`.
 bool GameFilesPresent(const std::filesystem::path& game_dir);
 
+// The one default.xex the port is built for: the XBLA release, version 0.0.1.1
+// (built 2005-11-04). setup.ps1 checks the same values before translating it.
+constexpr uint64_t kXexSize = 3252224;
+constexpr uint32_t kXexCrc32 = 0xCCB0ACE9;
+
+// True when default.xex under `game_dir` is that exact version (cached per file).
+bool GameVersionMatches(const std::filesystem::path& game_dir);
+
 // Loads the GPU plugin early so its cvars (resolution scale, FXAA, ...) are
 // registered before the config is read and can be edited by the launcher.
 void PreloadGpuPlugin();

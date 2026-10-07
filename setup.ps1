@@ -9,8 +9,11 @@
 #>
 param(
     # Path to your own dump of the Outpost Kaloki X XBLA package (STFS "LIVE" file).
-    [Parameter(Mandatory = $true)][string]$Package
+    [string]$Package,
+    # Or a folder with the game files already extracted (the launcher's game folder).
+    [string]$GameDir
 )
+if (-not $Package -and -not $GameDir) { throw "Give -Package <your XBLA package> or -GameDir <extracted game files>." }
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $sdkVersion = '0.10.0'
@@ -43,11 +46,45 @@ if ($current -eq $officialHash) {
     Write-Warning "Unexpected rexruntime.dll in the SDK; leaving it as is."
 }
 
-# 2. Extract the game package into okx/assets
+# 2. Extract the game package (or copy the extracted game files) into okx/assets
 $assets = Join-Path $root 'okx\assets'
-Write-Host "Extracting $Package -> $assets"
-& (Join-Path $root 'tools\extract_stfs.ps1') -Package $Package -OutDir $assets
+if ($Package) {
+    Write-Host "Extracting $Package -> $assets"
+    & (Join-Path $root 'tools\extract_stfs.ps1') -Package $Package -OutDir $assets
+} else {
+    if (-not (Test-Path (Join-Path $GameDir 'default.xex'))) { throw "default.xex not found in $GameDir" }
+    Write-Host "Copying game files $GameDir -> $assets"
+    New-Item -ItemType Directory -Force $assets | Out-Null
+    Copy-Item (Join-Path $GameDir '*') $assets -Recurse -Force
+}
 if (-not (Test-Path (Join-Path $assets 'default.xex'))) { throw "default.xex not found after extraction" }
+
+# 2b. The port (hooks, addresses, overrides.toml) is made for one exact
+#     default.xex: the XBLA release, version 0.0.1.1. Another revision would
+#     translate but crash in confusing ways, so stop here instead.
+$xexSize = 3252224
+$xexCrc32 = [Convert]::ToUInt32('CCB0ACE9', 16)
+$xex = Get-Item (Join-Path $assets 'default.xex')
+if (-not ('OkxCrc32' -as [type])) {
+    Add-Type -TypeDefinition @'
+public static class OkxCrc32 {
+    public static uint Of(string path) {
+        var table = new uint[256];
+        for (uint i = 0; i < 256; i++) { uint c = i; for (int k = 0; k < 8; k++) c = (c & 1) != 0 ? 0xEDB88320u ^ (c >> 1) : c >> 1; table[i] = c; }
+        uint crc = 0xFFFFFFFFu;
+        foreach (byte b in System.IO.File.ReadAllBytes(path)) crc = table[(crc ^ b) & 0xFF] ^ (crc >> 8);
+        return crc ^ 0xFFFFFFFFu;
+    }
+}
+'@
+}
+$crc = [OkxCrc32]::Of($xex.FullName)
+if ($xex.Length -ne $xexSize -or $crc -ne $xexCrc32) {
+    $found = "default.xex: {0} bytes, CRC32 {1:X8}" -f $xex.Length, $crc
+    $wanted = "{0} bytes, CRC32 {1:X8}" -f $xexSize, $xexCrc32
+    throw "This package has a different version of Outpost Kaloki X ($found). The port needs the Xbox Live Arcade release, version 0.0.1.1 ($wanted)."
+}
+Write-Host ("default.xex is the supported version (CRC32 {0:X8})." -f $crc)
 
 # 3. Generate recompiled sources
 Write-Host "Running rexglue codegen..."

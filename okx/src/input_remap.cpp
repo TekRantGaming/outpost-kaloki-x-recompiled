@@ -12,9 +12,14 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <chrono>
+#include <cstdlib>
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include <rex/hook.h>
+#include <rex/logging.h>
 
 #include "settings.h"
 
@@ -101,12 +106,71 @@ void Remap(uint8_t* state) {
   ShapeStick(state + 12, deadzone, camera);
 }
 
+// Developer test aid: OKX_DEV_INPUT="14:start;18:a;21:dpad_down" presses each
+// button (ids as in okx_map_*) for 150 ms at that many seconds after the game
+// first reads the pad, so test runs can reach menus without touching the
+// player's real keyboard or controller. Ignored unless the variable is set.
+struct DevPress {
+  double at;
+  uint16_t mask;
+};
+
+const std::vector<DevPress>& DevScript() {
+  static const std::vector<DevPress> script = [] {
+    std::vector<DevPress> out;
+    const char* env = std::getenv("OKX_DEV_INPUT");
+    if (!env) return out;
+    std::string s(env);
+    size_t pos = 0;
+    while (pos < s.size()) {
+      size_t end = s.find(';', pos);
+      if (end == std::string::npos) end = s.size();
+      const std::string item = s.substr(pos, end - pos);
+      pos = end + 1;
+      const size_t colon = item.find(':');
+      if (colon == std::string::npos) continue;
+      const okx::Pad pad = okx::ParsePad(item.substr(colon + 1));
+      if (pad == okx::Pad::kNone || !okx::GetPadInfo(pad).mask) continue;
+      out.push_back({std::atof(item.substr(0, colon).c_str()), okx::GetPadInfo(pad).mask});
+    }
+    return out;
+  }();
+  return script;
+}
+
+// Buttons the dev script holds right now (0 when none / not active).
+uint16_t DevButtons() {
+  const auto& script = DevScript();
+  if (script.empty()) return 0;
+  using Clock = std::chrono::steady_clock;
+  static const Clock::time_point start = Clock::now();
+  const double t = std::chrono::duration<double>(Clock::now() - start).count();
+  uint16_t mask = 0;
+  for (const auto& p : script)
+    if (t >= p.at && t < p.at + 0.15) mask |= p.mask;
+  static uint16_t last = 0;
+  if (mask != last) REXLOG_INFO("OKX: dev input {:04X} at {:.2f}s", mask, t);
+  last = mask;
+  return mask;
+}
+
 }  // namespace
 
 REX_EXTERN(__imp__sub_820E9678);
 REX_HOOK_RAW(sub_820E9678) {
   const uint32_t state_ptr = ctx.r4.u32;
   __imp__sub_820E9678(ctx, base);
+  if (!DevScript().empty() && state_ptr) {
+    // Act as a connected pad even without one, and add the scripted presses.
+    if (ctx.r3.u32 != 0) {
+      std::memset(base + state_ptr, 0, 16);
+      ctx.r3.u64 = 0;
+    }
+    static uint32_t packet = 0;
+    StoreBE<uint32_t>(base + state_ptr, ++packet);
+    StoreBE<uint16_t>(base + state_ptr + 4, LoadBE<uint16_t>(base + state_ptr + 4) | DevButtons());
+    return;
+  }
   if (ctx.r3.u32 == 0 && state_ptr) Remap(base + state_ptr);  // ERROR_SUCCESS
 }
 

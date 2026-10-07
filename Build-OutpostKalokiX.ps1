@@ -11,6 +11,7 @@
 #>
 param(
     [string]$Package,                     # skip the file picker
+    [string]$GameDir,                     # use game files already extracted (the launcher's updates)
     [string]$OutDir = "$PSScriptRoot\OutpostKalokiX",
     [switch]$Yes,                         # answer yes to every question
     [switch]$NoShortcut,                  # never add a desktop shortcut
@@ -67,26 +68,32 @@ Say "  Build tools ready." 'Green'
 
 # -------------------------------------------------------------- 2. package ---
 Step 2 "Choosing your Outpost Kaloki X package"
-if (-not $Package) {
-    Say "  Pick your XBLA package: the file with no extension from your Xbox 360 or emulator content folder."
-    Add-Type -AssemblyName System.Windows.Forms
-    $dlg = New-Object System.Windows.Forms.OpenFileDialog
-    $dlg.Title = 'Select your Outpost Kaloki X XBLA package'
-    $dlg.Filter = 'Xbox 360 package (no extension)|*.*'
-    if ($dlg.ShowDialog() -ne 'OK') { Fail "No package chosen." }
-    $Package = $dlg.FileName
+if ($GameDir) {
+    if (-not (Test-Path (Join-Path $GameDir 'default.xex'))) { Fail "No game files in $GameDir." }
+    Say "  Using the installed game files in $GameDir." 'Green'
+} else {
+    if (-not $Package) {
+        Say "  Pick your XBLA package: the file with no extension from your Xbox 360 or emulator content folder."
+        Add-Type -AssemblyName System.Windows.Forms
+        $dlg = New-Object System.Windows.Forms.OpenFileDialog
+        $dlg.Title = 'Select your Outpost Kaloki X XBLA package'
+        $dlg.Filter = 'Xbox 360 package (no extension)|*.*'
+        if ($dlg.ShowDialog() -ne 'OK') { Fail "No package chosen." }
+        $Package = $dlg.FileName
+    }
+    if (-not (Test-Path $Package)) { Fail "File not found: $Package" }
+    $fs = [IO.File]::OpenRead($Package); $hdr = New-Object byte[] 0x364; [void]$fs.Read($hdr, 0, $hdr.Length); $fs.Close()
+    $magic = [Text.Encoding]::ASCII.GetString($hdr, 0, 4)
+    $id = ([uint32]$hdr[0x360] -shl 24) -bor ([uint32]$hdr[0x361] -shl 16) -bor ([uint32]$hdr[0x362] -shl 8) -bor $hdr[0x363]
+    if ($magic -notin 'LIVE', 'PIRS', 'CON ') { Fail "That file is not an Xbox 360 package." }
+    if ($id -ne $titleId) { Fail ("That package is title {0:X8}, not Outpost Kaloki X ({1:X8})." -f $id, $titleId) }
+    Say "  Found Outpost Kaloki X ($([IO.Path]::GetFileName($Package)))." 'Green'
 }
-if (-not (Test-Path $Package)) { Fail "File not found: $Package" }
-$fs = [IO.File]::OpenRead($Package); $hdr = New-Object byte[] 0x364; [void]$fs.Read($hdr, 0, $hdr.Length); $fs.Close()
-$magic = [Text.Encoding]::ASCII.GetString($hdr, 0, 4)
-$id = ([uint32]$hdr[0x360] -shl 24) -bor ([uint32]$hdr[0x361] -shl 16) -bor ([uint32]$hdr[0x362] -shl 8) -bor $hdr[0x363]
-if ($magic -notin 'LIVE', 'PIRS', 'CON ') { Fail "That file is not an Xbox 360 package." }
-if ($id -ne $titleId) { Fail ("That package is title {0:X8}, not Outpost Kaloki X ({1:X8})." -f $id, $titleId) }
-Say "  Found Outpost Kaloki X ($([IO.Path]::GetFileName($Package)))." 'Green'
 
 # ------------------------------------------------- 3. extract and translate ---
 Step 3 "Unpacking and translating the game code"
-& "$root\setup.ps1" -Package $Package
+$source = if ($GameDir) { @{ GameDir = $GameDir } } else { @{ Package = $Package } }
+try { & "$root\setup.ps1" @source } catch { Fail $_.Exception.Message }
 if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { Fail "Setup failed (see above)." }
 
 # -------------------------------------------------------------- 4. compile ---
@@ -98,9 +105,14 @@ if ($LASTEXITCODE -ne 0) { Fail "Compiling failed (see above)." }
 Step 5 "Putting the game together"
 $bin = "$root\okx\out\build\okx-release"
 New-Item -ItemType Directory -Force "$OutDir\game" | Out-Null
-Copy-Item "$bin\*.exe", "$bin\*.dll" $OutDir -Force
-Copy-Item "$root\okx\assets\*" "$OutDir\game" -Recurse -Force
 $exe = "$OutDir\outpost_kaloki_x.exe"
+# An update starts this builder from the launcher, which then quits; make sure
+# the old game has closed before its files are replaced.
+Get-Process outpost_kaloki_x -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } |
+    Wait-Process -Timeout 60 -ErrorAction SilentlyContinue
+Copy-Item "$bin\*.exe", "$bin\*.dll" $OutDir -Force
+$sameGame = $GameDir -and ((Resolve-Path $GameDir).Path -eq (Resolve-Path "$OutDir\game").Path)
+if (-not $sameGame) { Copy-Item "$root\okx\assets\*" "$OutDir\game" -Recurse -Force }
 Say "  Done: $exe" 'Green'
 
 if (-not $NoShortcut -and (Ask "  Add a desktop shortcut?")) {
