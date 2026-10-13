@@ -1,0 +1,14 @@
+{
+  "$schema": "https://recomp.fyi/schema/v1.json",
+  "game": "Outpost Kaloki X",
+  "system": "Xbox 360",
+  "type": "recomp",
+  "original": { "revision": "Xbox Live Arcade", "serial": "584107DB" },
+  "project": "Outpost Kaloki X Recompiled",
+  "status": "released",
+  "targets": ["Windows", "Linux"],
+  "toolchain": "ReXGlue",
+  "approach": "Static recompilation with ReXGlue",
+  "maintainers": [{ "name": "TekRantGaming", "link": "https://github.com/TekRantGaming" }],
+  "notes": "Xbox Live Arcade release. Bring your own XBLA package. The serial field holds the Xbox 360 title ID."
+}
