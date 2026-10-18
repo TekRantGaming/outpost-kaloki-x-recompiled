@@ -12,4 +12,8 @@ Open the launcher: it offers the update and installs it for you (or **About > Ch
 
 **No game files are included.**
 
+### SHA-256 and VirusTotal
+- `OutpostKalokiX-v1.1.1-windows-x64.zip`: `0ea63e834df5d565479b473c8671a3088ba9f8a1fc8c76a44174d33371ba9ca0` ([VirusTotal](https://www.virustotal.com/gui/file/0ea63e834df5d565479b473c8671a3088ba9f8a1fc8c76a44174d33371ba9ca0))
+- `OutpostKalokiX-v1.1.1-linux-x86_64.AppImage`: `67647183b9f8eb3d73cc56e6bae35196870394ebd61c6b95b93b5fa852eeb791` ([VirusTotal](https://www.virustotal.com/gui/file/67647183b9f8eb3d73cc56e6bae35196870394ebd61c6b95b93b5fa852eeb791))
+
 This build was made with AI (Claude Code). See the README for details.
