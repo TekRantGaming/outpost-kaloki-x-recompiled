@@ -216,7 +216,22 @@ std::filesystem::path BrowseForPackage() {
 
 // Settings that the presenter/window read before the launcher runs; changing
 // them needs a relaunch to take effect.
-constexpr const char* kRestartCvars[] = {"present_effect", "window_width", "window_height", "monitor"};
+// The Vulkan presenter (Linux) picks its present mode when the swapchain is
+// created, before the launcher shows, so VSync changes there need a relaunch.
+constexpr const char* kRestartCvars[] = {"present_effect", "window_width", "window_height", "monitor",
+                                         "vulkan_allow_present_mode_immediate", "vulkan_allow_present_mode_mailbox",
+                                         "vulkan_allow_present_mode_fifo_relaxed"};
+
+// VSync. Windows (D3D12): the runtime's flag is "allow tearing", which is VSync
+// off. Linux (Vulkan): the presenter uses the first allowed of immediate
+// (tearing), mailbox, FIFO relaxed and FIFO, so VSync on disallows the first
+// three, leaving FIFO, which waits for the display.
+#if defined(_WIN32)
+constexpr const char* kVsyncOffCvars[] = {"d3d12_allow_variable_refresh_rate_and_tearing"};
+#else
+constexpr const char* kVsyncOffCvars[] = {"vulkan_allow_present_mode_immediate", "vulkan_allow_present_mode_mailbox",
+                                          "vulkan_allow_present_mode_fifo_relaxed"};
+#endif
 
 enum Page { kPlay, kDisplay, kGraphics, kGameplay, kControls, kAchievements, kAbout, kPageCount };
 constexpr const char* kPageNames[kPageCount] = {"Play",     "Display",      "Graphics", "Gameplay",
@@ -714,7 +729,11 @@ class Launcher final : public rex::ui::ImGuiDialog {
     MonitorCombo();
     Row("VSync", "On waits for the display for tear-free frames. Off has the lowest latency and lets "
                  "G-Sync/FreeSync displays run freely.");
-    ToggleCvar("d3d12_allow_variable_refresh_rate_and_tearing", "Off", "On", /*invert=*/true);
+    {
+      const bool vsync_off = GetBool(kVsyncOffCvars[0]);
+      if (int i = Segmented("vsync", {"Off", "On"}, vsync_off ? 0 : 1); i >= 0)
+        for (const char* name : kVsyncOffCvars) SetBool(name, i == 0);
+    }
     Row("Aspect ratio", "The game is 16:9. Letterbox keeps its shape on other screens; stretch fills them.");
     {
       const bool letterbox = GetBool("present_letterbox");
